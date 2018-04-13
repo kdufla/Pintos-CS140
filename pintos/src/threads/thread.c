@@ -28,6 +28,10 @@ static struct list ready_list;
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
 
+/* List of sleepeing processes. Processes are added to this list
+   when they call timer_sleep and removed when the target ticks is reached */
+static struct list sleep_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -92,6 +96,9 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&sleep_list);
+
+  
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -133,7 +140,7 @@ thread_tick (void)
 #endif
   else
     kernel_ticks++;
-
+  thread_wake();
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
@@ -494,6 +501,36 @@ next_thread_to_run (void)
     return idle_thread;
   else
     return list_entry (list_pop_front (&ready_list), struct thread, elem);
+}
+
+static bool 
+cmp_wake (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
+{
+  struct thread *t_a = list_entry(a, struct thread, elem);
+  struct thread *t_b = list_entry(b, struct thread, elem);
+  return t_a->wake_time < t_b->wake_time;
+}
+
+void 
+thread_sleep(int64_t to_finish)
+{
+  struct thread *t = thread_current ();
+  t->wake_time = to_finish;
+  thread_block();
+  list_insert_ordered (&sleep_list, &(t->elem), &cmp_wake, NULL);
+  schedule();
+}
+
+void 
+thread_wake()
+{
+  int64_t current_time = timer_ticks ();
+  while(true){
+    if (list_empty (&sleep_list)) break;
+    struct thread * to_wake = list_entry(list_pop_front (&sleep_list), struct thread, elem);
+    if (to_wake->wake_time > current_time) break;
+    thread_unblock(to_wake);
+  }
 }
 
 /* Completes a thread switch by activating the new thread's page
