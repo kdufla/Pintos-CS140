@@ -4,6 +4,7 @@
 #include <random.h>
 #include <stdio.h>
 #include <string.h>
+#include <inttypes.h>
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
@@ -11,6 +12,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -512,25 +514,29 @@ cmp_wake (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED
 }
 
 void 
-thread_sleep(int64_t to_finish)
+thread_sleep (int64_t untill)
 {
   struct thread *t = thread_current ();
-  t->wake_time = to_finish;
-  thread_block();
+  t->wake_time = untill;
   list_insert_ordered (&sleep_list, &(t->elem), &cmp_wake, NULL);
-  schedule();
+  thread_block ();
 }
 
 void 
-thread_wake()
+thread_wake (void)
 {
+  
+  if (list_empty (&sleep_list)) return;
   int64_t current_time = timer_ticks ();
-  while(true){
-    if (list_empty (&sleep_list)) break;
-    struct thread * to_wake = list_entry(list_pop_front (&sleep_list), struct thread, elem);
-    if (to_wake->wake_time > current_time) break;
-    thread_unblock(to_wake);
+  enum intr_level old_level = intr_disable ();
+  while ( !(list_empty (&sleep_list)) ){
+    struct thread * wake_t = list_entry (list_front (&sleep_list), struct thread, elem);
+    if (wake_t->wake_time > current_time) break;
+    list_pop_front (&sleep_list);
+    thread_unblock (wake_t);
   }
+  intr_set_level (old_level);
+  return;
 }
 
 /* Completes a thread switch by activating the new thread's page

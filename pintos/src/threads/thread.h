@@ -124,7 +124,7 @@ void thread_block (void);
 void thread_unblock (struct thread *);
 
 void thread_sleep(int64_t to_finish);
-void thread_wake();
+void thread_wake(void);
 
 struct thread *thread_current (void);
 tid_t thread_tid (void);

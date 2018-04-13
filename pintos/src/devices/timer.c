@@ -91,9 +91,9 @@ timer_sleep (int64_t ticks)
 {
   if (ticks <= 0) return;
   int64_t start = timer_ticks ();
-  int64_t to_finish = start + ticks;
+  int64_t untill = start + ticks;
   intr_disable ();
-  thread_sleep(to_finish);
+  thread_sleep(untill);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
