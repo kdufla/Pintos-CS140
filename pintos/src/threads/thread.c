@@ -228,7 +228,11 @@ static bool priority_list_less_func (const struct list_elem *a,
 }
 
 void add_thread_to_ready_queue(struct thread *t){
-  list_insert_ordered(&ready_list, &t->elem, priority_list_less_func, NULL);
+  struct list_elem *el = &t->elem;
+  // if(is_interior(el)){
+  //   list_remove(el);
+  // }
+  list_insert_ordered(&ready_list, el, priority_list_less_func, NULL);
 }
 
 /* Puts the current thread to sleep.  It will not be scheduled
