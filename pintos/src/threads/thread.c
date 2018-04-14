@@ -74,6 +74,7 @@ static void init_thread (struct thread *, const char *name, int priority);
 static bool is_thread (struct thread *) UNUSED;
 static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
+int priority_in_range (int priority);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 static bool priority_list_less_func (const struct list_elem *a, const struct list_elem *b, __attribute__((unused)) void *aux);
@@ -364,11 +365,23 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
+/* Returns the given number in the range (PRI_MIN:PRI_MAX). */
+int
+priority_in_range (int priority) {
+  if (priority > PRI_MAX) priority = PRI_MAX;
+  if (priority < PRI_MIN) priority = PRI_MIN;
+  return priority;
+}
+
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority)
 {
-  thread_current ()->priority = new_priority;
+  struct thread *th = thread_current ();
+  int actual_priority = priority_in_range (new_priority);
+  th->actual_priority = actual_priority;
+  int priority = actual_priority - th->nice;
+  th->priority = priority_in_range (priority);
   thread_yield();
 }
 
@@ -381,17 +394,19 @@ thread_get_priority (void)
 
 /* Sets the current thread's nice value to NICE. */
 void
-thread_set_nice (int nice UNUSED)
+thread_set_nice (int nice)
 {
-  /* Not yet implemented. */
+  thread_current ()->nice = nice;
+  int priority = thread_current ()->actual_priority - nice;
+  thread_current ()->priority = priority_in_range (priority);
+  thread_yield();
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void)
 {
-  /* Not yet implemented. */
-  return 0;
+  return thread_current ()->nice;
 }
 
 /* Returns 100 times the system load average. */
