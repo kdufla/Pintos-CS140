@@ -223,16 +223,16 @@ static bool priority_list_less_func (const struct list_elem *a,
   ASSERT(list_entry(a, struct thread, elem)->magic == THREAD_MAGIC);
   ASSERT(list_entry(b, struct thread, elem)->magic == THREAD_MAGIC);
   
-  return list_entry(a, struct thread, elem)->priority > list_entry(b, struct thread, elem)->priority;
+  return list_entry(a, struct thread, elem)->priority <= list_entry(b, struct thread, elem)->priority;
 
 }
 
 void add_thread_to_ready_queue(struct thread *t){
-  struct list_elem *el = &t->elem;
-  // if(is_interior(el)){
-  //   list_remove(el);
+  struct list_elem *elem = &t->elem;
+  // if(elem != NULL && elem->prev != NULL && elem->next != NULL){
+  //   list_remove(elem);
   // }
-  list_insert_ordered(&ready_list, el, priority_list_less_func, NULL);
+  list_insert_ordered(&ready_list, elem, priority_list_less_func, NULL);
 }
 
 /* Puts the current thread to sleep.  It will not be scheduled
@@ -526,7 +526,7 @@ next_thread_to_run (void)
   if (list_empty (&ready_list))
     return idle_thread;
   else{
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+    return list_entry (list_pop_back (&ready_list), struct thread, elem);
   }
 }
 
