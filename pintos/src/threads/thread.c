@@ -75,6 +75,7 @@ static bool is_thread (struct thread *) UNUSED;
 static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 int priority_in_range (int priority);
+int thread_calculate_priority ();
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 static bool priority_list_less_func (const struct list_elem *a, const struct list_elem *b, __attribute__((unused)) void *aux);
@@ -147,8 +148,14 @@ thread_tick (void)
     kernel_ticks++;
   thread_wake();
   /* Enforce preemption. */
-  if (++thread_ticks >= TIME_SLICE)
+  if (++thread_ticks >= TIME_SLICE) {
     intr_yield_on_return ();
+    if (thread_mlfqs) {
+      int priority = thread_calculate_priority();
+      if (priority != t->actual_priority)
+        thread_set_priority(priority);
+    }
+  }
 }
 
 /* Prints thread statistics. */
@@ -365,9 +372,18 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
+/* Calculates priority of current thread based on mlfqs requirement. */
+int
+thread_calculate_priority (void)
+{
+  struct thread *th = thread_current ();
+  int priority = PRI_MAX - fix_round (fix_unscale (th->recent_cpu, 4)) - (th->nice * 2);
+}
+
 /* Returns the given number in the range (PRI_MIN:PRI_MAX). */
 int
-priority_in_range (int priority) {
+priority_in_range (int priority)
+{
   if (priority > PRI_MAX) priority = PRI_MAX;
   if (priority < PRI_MIN) priority = PRI_MIN;
   return priority;
