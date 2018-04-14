@@ -4,6 +4,7 @@
 #include <random.h>
 #include <stdio.h>
 #include <string.h>
+#include <inttypes.h>
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
@@ -11,6 +12,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -27,6 +29,10 @@ static struct list ready_list;
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
+
+/* List of sleepeing processes. Processes are added to this list
+   when they call timer_sleep and removed when the target ticks is reached */
+static struct list sleep_list;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -94,6 +100,9 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&sleep_list);
+
+  
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -135,7 +144,7 @@ thread_tick (void)
 #endif
   else
     kernel_ticks++;
-
+  thread_wake();
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
@@ -515,6 +524,40 @@ next_thread_to_run (void)
   else{
     return list_entry (list_pop_front (&ready_list), struct thread, elem);
   }
+}
+
+static bool 
+cmp_wake (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
+{
+  struct thread *t_a = list_entry(a, struct thread, elem);
+  struct thread *t_b = list_entry(b, struct thread, elem);
+  return t_a->wake_time < t_b->wake_time;
+}
+
+void 
+thread_sleep (int64_t untill)
+{
+  struct thread *t = thread_current ();
+  t->wake_time = untill;
+  list_insert_ordered (&sleep_list, &(t->elem), &cmp_wake, NULL);
+  thread_block ();
+}
+
+void 
+thread_wake (void)
+{
+  
+  if (list_empty (&sleep_list)) return;
+  int64_t current_time = timer_ticks ();
+  enum intr_level old_level = intr_disable ();
+  while ( !(list_empty (&sleep_list)) ){
+    struct thread * wake_t = list_entry (list_front (&sleep_list), struct thread, elem);
+    if (wake_t->wake_time > current_time) break;
+    list_pop_front (&sleep_list);
+    thread_unblock (wake_t);
+  }
+  intr_set_level (old_level);
+  return;
 }
 
 /* Completes a thread switch by activating the new thread's page
