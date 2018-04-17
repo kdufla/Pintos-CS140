@@ -79,6 +79,7 @@ static void schedule (void);
 int priority_in_range (int priority);
 void recalculate_load_avg (void);
 void recalculate_recent_cpu (struct thread *th, void *aux UNUSED);
+void recalculate_priority (struct thread *th, void *aux UNUSED);
 int thread_calculate_priority (struct thread *th);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
@@ -155,7 +156,9 @@ thread_tick (void)
     t->recent_cpu = fix_add (t->recent_cpu, fix_int (1));
   }
   if (timer_ticks() % TIMER_FREQ == 0) {
+    printf("-----|||-----%d\n, name: %s", load_avg.f, t->name);
     recalculate_load_avg ();
+    printf("-----|-|-----%d\n", load_avg.f);
     thread_foreach (recalculate_recent_cpu, NULL);
   }
 
@@ -163,7 +166,9 @@ thread_tick (void)
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE) {
     if (thread_mlfqs) {
-      t->priority = thread_calculate_priority(t);
+      enum intr_level old_level = intr_disable ();
+      thread_foreach (recalculate_priority, NULL);
+      intr_set_level (old_level);
     }
     intr_yield_on_return ();
   }
@@ -228,8 +233,13 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
+  printf("------Ready list size before: %d, name: %s\n", list_size (&ready_list), t->name);
+
   /* Add to run queue. */
   thread_unblock (t);
+
+  printf("------Ready list size after: %d\n", list_size (&ready_list));
+
   thread_yield();
 
   return tid;
@@ -387,6 +397,7 @@ void
 recalculate_load_avg (void)
 {
   fixed_point_t load_avg_weight = fix_mul (fix_frac (59, 60), load_avg);
+  printf("----==----%d\n", list_size (&ready_list));
   fixed_point_t ready_weight = fix_scale (fix_frac (1, 60), list_size (&ready_list));
   load_avg = fix_add (load_avg_weight, ready_weight);
 }
@@ -397,6 +408,16 @@ recalculate_recent_cpu (struct thread *th, void *aux UNUSED)
   fixed_point_t load_avg_twice = fix_scale (load_avg, 2);
   fixed_point_t coefficient = fix_div (load_avg_twice, fix_add (load_avg_twice, fix_int (1)));
   th->recent_cpu = fix_add (fix_mul (th->recent_cpu, coefficient), fix_int (th->nice));
+}
+
+void
+recalculate_priority (struct thread *th, void *aux UNUSED)
+{
+  th->priority = thread_calculate_priority (th);
+  if (th->status == THREAD_READY) {
+    list_remove(&(th->elem));
+    add_thread_to_ready_queue(th);
+  }
 }
 
 /* Calculates priority of given thread based on mlfqs requirement. */
@@ -613,7 +634,6 @@ thread_sleep (int64_t untill)
 void 
 thread_wake (void)
 {
-  
   if (list_empty (&sleep_list)) return;
   int64_t current_time = timer_ticks ();
   enum intr_level old_level = intr_disable ();
