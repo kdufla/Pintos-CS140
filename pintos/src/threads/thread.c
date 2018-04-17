@@ -156,9 +156,9 @@ thread_tick (void)
     t->recent_cpu = fix_add (t->recent_cpu, fix_int (1));
   }
   if (timer_ticks() % TIMER_FREQ == 0) {
-    printf("-----|||-----%d\n, name: %s", load_avg.f, t->name);
+    //printf("-----|||-----%d, name: %s\n", load_avg.f, t->name);
     recalculate_load_avg ();
-    printf("-----|-|-----%d\n", load_avg.f);
+    //printf("-----|-|-----%d\n", load_avg.f);
     thread_foreach (recalculate_recent_cpu, NULL);
   }
 
@@ -233,12 +233,8 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
-  printf("------Ready list size before: %d, name: %s\n", list_size (&ready_list), t->name);
-
   /* Add to run queue. */
   thread_unblock (t);
-
-  printf("------Ready list size after: %d\n", list_size (&ready_list));
 
   thread_yield();
 
@@ -397,8 +393,14 @@ void
 recalculate_load_avg (void)
 {
   fixed_point_t load_avg_weight = fix_mul (fix_frac (59, 60), load_avg);
-  printf("----==----%d\n", list_size (&ready_list));
-  fixed_point_t ready_weight = fix_scale (fix_frac (1, 60), list_size (&ready_list));
+  fixed_point_t ready_weight;
+  //printf("----==----%d     %s\n", list_size (&ready_list), running_thread()->name);
+  struct thread *t = thread_current ();
+  if(t != idle_thread){
+    ready_weight = fix_scale (fix_frac (1, 60), list_size (&ready_list)+1);
+  } else {
+    ready_weight = fix_scale (fix_frac (1, 60), list_size (&ready_list));
+  }
   load_avg = fix_add (load_avg_weight, ready_weight);
 }
 
@@ -627,6 +629,7 @@ thread_sleep (int64_t untill)
 {
   struct thread *t = thread_current ();
   t->wake_time = untill;
+  //printf("              %d\n", untill );
   list_insert_ordered (&sleep_list, &(t->elem), &cmp_wake, NULL);
   thread_block ();
 }
