@@ -32,6 +32,8 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 
+#define max(X, Y)  ((X) > (Y) ? (X) : (Y))
+
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -181,6 +183,17 @@ lock_init (struct lock *lock)
   sema_init (&lock->semaphore, 1);
 }
 
+/*
+ donate priority recursively. give holder given priority and if it
+ is aiwiting for someone, give thah someone priority too and so on
+*/
+void donate_my_priority(struct thread *holder, int priority){
+  holder->priority = max(holder->priority, priority);
+  if(holder->waiting_for){
+    donate_my_priority(holder->waiting_for->holder, priority);
+  }
+}
+
 /* Acquires LOCK, sleeping until it becomes available if
    necessary.  The lock must not already be held by the current
    thread.
@@ -196,8 +209,27 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
+  enum intr_level old_level; 
+
+  old_level = intr_disable ();
+
+  if(!lock->holder){
+    lock->holder = thread_current ();
   sema_down (&lock->semaphore);
-  lock->holder = thread_current ();
+
+  }else{
+    donate_my_priority(lock->holder, thread_current()->priority);
+    thread_current()->waiting_for = lock;
+    sema_down (&lock->semaphore);
+    thread_current()->waiting_for = NULL;
+  }
+
+  
+//  lock->holder = thread_current ();
+
+  intr_set_level (old_level);
+
+
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -231,8 +263,8 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
-  lock->holder = NULL;
   sema_up (&lock->semaphore);
+  lock->holder = NULL;
 }
 
 /* Returns true if the current thread holds LOCK, false

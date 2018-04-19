@@ -94,6 +94,8 @@ struct thread
     int actual_priority;
     struct list_elem allelem;           /* List element for all threads list. */
     int64_t wake_time;                  /* Time to wake up in ticks*/
+    
+    struct lock *waiting_for;
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
