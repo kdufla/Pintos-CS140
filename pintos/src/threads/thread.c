@@ -77,7 +77,7 @@ static bool is_thread (struct thread *) UNUSED;
 static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 int priority_in_range (int priority);
-void recalculate_load_avg (void);
+void recalculate_load_avg (bool is_idle);
 void recalculate_recent_cpu (struct thread *th, void *aux UNUSED);
 void recalculate_priority (struct thread *th, void *aux UNUSED);
 int thread_calculate_priority (struct thread *th);
@@ -152,24 +152,27 @@ thread_tick (void)
   else
     kernel_ticks++;
 
-  if (t != idle_thread) {
+  if (thread_mlfqs && t != idle_thread)
     t->recent_cpu = fix_add (t->recent_cpu, fix_int (1));
-  }
-  if (timer_ticks() % TIMER_FREQ == 0) {
-    //printf("-----|||-----%d, name: %s\n", load_avg.f, t->name);
-    recalculate_load_avg ();
-    //printf("-----|-|-----%d\n", load_avg.f);
+
+  /* When it's multiple of whole seconds */
+  if (thread_mlfqs && timer_ticks() % TIMER_FREQ == 0) {
+    enum intr_level old_level = intr_disable ();
+    recalculate_load_avg (t == idle_thread);
     thread_foreach (recalculate_recent_cpu, NULL);
+    intr_set_level (old_level);
   }
 
   thread_wake();
-  /* Enforce preemption. */
+  
   if (++thread_ticks >= TIME_SLICE) {
     if (thread_mlfqs) {
       enum intr_level old_level = intr_disable ();
       thread_foreach (recalculate_priority, NULL);
       intr_set_level (old_level);
     }
+
+    /* Enforce preemption. */
     intr_yield_on_return ();
   }
 }
@@ -390,17 +393,23 @@ thread_foreach (thread_action_func *func, void *aux)
 }
 
 void
-recalculate_load_avg (void)
+recalculate_load_avg (bool is_idle)
 {
   fixed_point_t load_avg_weight = fix_mul (fix_frac (59, 60), load_avg);
-  fixed_point_t ready_weight;
-  //printf("----==----%d     %s\n", list_size (&ready_list), running_thread()->name);
-  struct thread *t = thread_current ();
-  if(t != idle_thread){
-    ready_weight = fix_scale (fix_frac (1, 60), list_size (&ready_list)+1);
-  } else {
-    ready_weight = fix_scale (fix_frac (1, 60), list_size (&ready_list));
-  }
+  
+  /* ready_threads is count of ready to run and running threads
+     not including idle thread */
+  int ready_threads = list_size (&ready_list) + (is_idle ? 0 : 1);
+  
+  /* Special case, when initially only idle thread
+     is in the ready list we should not count it.
+     any other time, it is guaranteed that
+     idle will not be included in the ready list */
+  if (list_size (&ready_list) == 1 &&
+      list_entry (list_front (&ready_list), struct thread, elem) == idle_thread)
+    ready_threads = 1;
+
+  fixed_point_t ready_weight = fix_scale (fix_frac (1, 60), ready_threads);
   load_avg = fix_add (load_avg_weight, ready_weight);
 }
 
@@ -412,6 +421,8 @@ recalculate_recent_cpu (struct thread *th, void *aux UNUSED)
   th->recent_cpu = fix_add (fix_mul (th->recent_cpu, coefficient), fix_int (th->nice));
 }
 
+/* Recalculates priority for the thread th
+   and reorders the ready list if the thread was in it. */
 void
 recalculate_priority (struct thread *th, void *aux UNUSED)
 {
@@ -458,13 +469,18 @@ thread_get_priority (void)
   return thread_current ()->priority;
 }
 
-/* Sets the current thread's nice value to NICE. */
+/* Sets the current thread's nice value to NICE
+   and recalculates priority based on it. */
 void
 thread_set_nice (int nice)
 {
   struct thread *th = thread_current ();
   th->nice = nice;
-  th->priority = thread_calculate_priority (th);
+
+  enum intr_level old_level = intr_disable ();
+  recalculate_priority (th, NULL);
+  intr_set_level (old_level);
+
   thread_yield();
 }
 
@@ -629,7 +645,6 @@ thread_sleep (int64_t untill)
 {
   struct thread *t = thread_current ();
   t->wake_time = untill;
-  //printf("              %d\n", untill );
   list_insert_ordered (&sleep_list, &(t->elem), &cmp_wake, NULL);
   thread_block ();
 }
@@ -640,9 +655,11 @@ thread_wake (void)
   if (list_empty (&sleep_list)) return;
   int64_t current_time = timer_ticks ();
   enum intr_level old_level = intr_disable ();
+
   while ( !(list_empty (&sleep_list)) ){
     struct thread * wake_t = list_entry (list_front (&sleep_list), struct thread, elem);
-    if (wake_t->wake_time > current_time) break;
+    if (wake_t->wake_time > current_time)
+      break;
     list_pop_front (&sleep_list);
     thread_unblock (wake_t);
   }

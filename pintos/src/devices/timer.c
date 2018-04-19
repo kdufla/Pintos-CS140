@@ -92,8 +92,9 @@ timer_sleep (int64_t ticks)
   if (ticks <= 0) return;
   int64_t start = timer_ticks ();
   int64_t untill = start + ticks;
-  intr_disable ();
+  enum intr_level old_level = intr_disable ();
   thread_sleep(untill);
+  intr_set_level (old_level);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
