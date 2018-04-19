@@ -83,8 +83,9 @@ void recalculate_priority (struct thread *th, void *aux UNUSED);
 int thread_calculate_priority (struct thread *th);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
-static bool priority_list_less_func (const struct list_elem *a, const struct list_elem *b, __attribute__((unused)) void *aux);
+bool priority_list_less_func (const struct list_elem *a, const struct list_elem *b, __attribute__((unused)) void *aux);
 void add_thread_to_ready_queue(struct thread *t);
+void readd_thread_to_ready_queue(struct thread *t);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -244,7 +245,7 @@ thread_create (const char *name, int priority,
   return tid;
 }
 
-static bool priority_list_less_func (const struct list_elem *a,
+bool priority_list_less_func (const struct list_elem *a,
                              const struct list_elem *b,
                              __attribute__((unused)) void *aux)
 {
@@ -261,6 +262,14 @@ void add_thread_to_ready_queue(struct thread *t){
   //   list_remove(elem);
   // }
   list_insert_ordered(&ready_list, elem, priority_list_less_func, NULL);
+}
+
+// if thread is in ready queue update its place
+void readd_thread_to_ready_queue(struct thread *t){
+  if (t->status == THREAD_READY){
+    list_remove(&(t->elem));
+    add_thread_to_ready_queue(t);
+  }
 }
 
 /* Puts the current thread to sleep.  It will not be scheduled
@@ -427,10 +436,7 @@ void
 recalculate_priority (struct thread *th, void *aux UNUSED)
 {
   th->priority = thread_calculate_priority (th);
-  if (th->status == THREAD_READY) {
-    list_remove(&(th->elem));
-    add_thread_to_ready_queue(th);
-  }
+  readd_thread_to_ready_queue(th);
 }
 
 /* Calculates priority of given thread based on mlfqs requirement. */

@@ -150,4 +150,7 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+void readd_thread_to_ready_queue(struct thread *t);
+bool priority_list_less_func (const struct list_elem *a, const struct list_elem *b, __attribute__((unused)) void *aux);
+
 #endif /* threads/thread.h */
