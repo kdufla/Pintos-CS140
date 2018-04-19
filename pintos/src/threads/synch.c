@@ -213,12 +213,12 @@ lock_acquire (struct lock *lock)
   enum intr_level old_level; 
 
   old_level = intr_disable ();
+  struct thread *c = thread_current();
 
   if(!lock->holder){ // if not locked lock
     sema_down (&lock->semaphore);
     intr_set_level (old_level);     
   }else{ // if locked donate priority and wait
-    struct thread *c = thread_current();
     donate_my_priority(lock->holder, c->priority);
     intr_set_level (old_level); 
     
@@ -227,7 +227,8 @@ lock_acquire (struct lock *lock)
     thread_current()->waiting_for = NULL;
   }
 
-  lock->holder = thread_current ();
+  list_push_back(&c->locks, &lock->owner_list_elem);
+  lock->holder = c;
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -250,6 +251,8 @@ lock_try_acquire (struct lock *lock)
   return success;
 }
 
+#define DEB
+
 /* Releases LOCK, which must be owned by the current thread.
 
    An interrupt handler cannot acquire a lock, so it does not
@@ -260,19 +263,45 @@ lock_release (struct lock *lock)
 {
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
-  
-  struct list_elem *e;
-  int pr = thread_current()->priority;
-  // for (e = list_begin (&lock->semaphore.waiters); e != list_end (&lock->semaphore.waiters); e = list_next (e)){
-  //   pr = max (pr, list_entry (e, struct thread, elem)->priority);
-  // }
-  thread_current()->priority = thread_current()->actual_priority;
 
+
+  enum intr_level old_level; 
+
+  old_level = intr_disable ();
+  
+#ifdef DEB
+
+  struct list_elem *e, *i;
+  int priority = thread_current()->actual_priority;
+  struct thread *cur = thread_current();
+  struct lock *owned_lock;
+
+  for(e = list_begin(&cur->locks); e != list_end(&cur->locks); e = list_next(e)){
+    
+    owned_lock = list_entry(e, struct lock, owner_list_elem);
+
+    for(i = list_begin(&owned_lock->semaphore.waiters); i != list_end(&owned_lock->semaphore.waiters); i = list_next(i)){
+
+      priority = max(priority, list_entry(i, struct thread, elem)->priority);
+
+
+
+    }
+  }
+
+  cur->priority = priority;
+
+
+#else
+  thread_current()->priority = thread_current()->actual_priority;
+#endif
 
 
 
   sema_up (&lock->semaphore);
+  list_remove(&lock->owner_list_elem);
   lock->holder = NULL;
+  intr_set_level (old_level);
   thread_yield();
 }
 

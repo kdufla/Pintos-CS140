@@ -97,6 +97,8 @@ struct thread
     
     struct lock *waiting_for;
 
+    struct list locks;
+
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
     fixed_point_t recent_cpu;
