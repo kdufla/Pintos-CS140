@@ -42,6 +42,8 @@ void cond_wait (struct condition *, struct lock *);
 void cond_signal (struct condition *, struct lock *);
 void cond_broadcast (struct condition *, struct lock *);
 
+bool sema_comp (const struct list_elem *a, const struct list_elem *b, __attribute__((unused)) void *aux);
+
 void donate_my_priority(struct thread *holder, int priority);
 
 /* Optimization barrier.

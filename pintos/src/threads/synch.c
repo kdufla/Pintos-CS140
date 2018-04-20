@@ -195,7 +195,8 @@ lock_init (struct lock *lock)
  donate priority recursively. give holder given priority and if it
  is aiwiting for someone, give thah someone priority too and so on
 */
-void donate_my_priority(struct thread *holder, int priority){
+void
+donate_my_priority(struct thread *holder, int priority){
   holder->priority = max(holder->priority, priority);
   readd_thread_to_ready_queue(holder);
   if(holder->waiting_for){
@@ -277,19 +278,22 @@ lock_release (struct lock *lock)
   list_remove(&lock->owner_list_elem);
   lock->holder = NULL;
 
-  struct list_elem *e, *i;
-  int priority = thread_current()->actual_priority;
-  struct thread *cur = thread_current();
-  struct lock *owned_lock;
+  if(!thread_mlfqs) {
+    struct list_elem *e, *i;
+    int priority = thread_current()->actual_priority;
+    struct thread *cur = thread_current();
+    struct lock *owned_lock;
 
-  for(e = list_begin(&cur->locks); e != list_end(&cur->locks); e = list_next(e)){
-    owned_lock = list_entry(e, struct lock, owner_list_elem);
-    for(i = list_begin(&owned_lock->semaphore.waiters); i != list_end(&owned_lock->semaphore.waiters); i = list_next(i)){
-      priority = max(priority, list_entry(i, struct thread, elem)->priority);
+    for(e = list_begin(&cur->locks); e != list_end(&cur->locks); e = list_next(e)){
+      owned_lock = list_entry(e, struct lock, owner_list_elem);
+      for(i = list_begin(&owned_lock->semaphore.waiters); i != list_end(&owned_lock->semaphore.waiters); i = list_next(i)){
+        priority = max(priority, list_entry(i, struct thread, elem)->priority);
+      }
     }
+
+    cur->priority = priority;
   }
 
-  cur->priority = priority;
   sema_up (&lock->semaphore);  
   
   // thread_yield();
@@ -364,7 +368,8 @@ cond_wait (struct condition *cond, struct lock *lock)
 }
 
 
-bool sema_comp (const struct list_elem *a, const struct list_elem *b, __attribute__((unused)) void *aux){
+bool
+sema_comp (const struct list_elem *a, const struct list_elem *b, __attribute__((unused)) void *aux){
     struct semaphore_elem *sema1 = list_entry(a, struct semaphore_elem, elem);
     struct semaphore_elem *sema2 = list_entry(b, struct semaphore_elem, elem); 
     struct thread* th1 = sema1->th;
