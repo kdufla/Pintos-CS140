@@ -308,6 +308,7 @@ struct semaphore_elem
   {
     struct list_elem elem;              /* List element. */
     struct semaphore semaphore;         /* This semaphore. */
+    struct thread* th;
   };
 
 /* Initializes condition variable COND.  A condition variable
@@ -351,11 +352,21 @@ cond_wait (struct condition *cond, struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (lock_held_by_current_thread (lock));
 
+  waiter.th = thread_current();
   sema_init (&waiter.semaphore, 0);
   list_push_back (&cond->waiters, &waiter.elem);
   lock_release (lock);
   sema_down (&waiter.semaphore);
   lock_acquire (lock);
+}
+
+
+bool sema_comp (const struct list_elem *a, const struct list_elem *b, __attribute__((unused)) void *aux){
+    struct semaphore_elem *sema1 = list_entry(a, struct semaphore_elem, elem);
+    struct semaphore_elem *sema2 = list_entry(b, struct semaphore_elem, elem); 
+    struct thread* th1 = sema1->th;
+    struct thread* th2 = sema2->th;
+    return th1->priority > th2->priority;
 }
 
 /* If any threads are waiting on COND (protected by LOCK), then
@@ -374,9 +385,12 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
   ASSERT (lock_held_by_current_thread (lock));
 
   if (!list_empty (&cond->waiters))
+    list_sort(&cond->waiters, sema_comp ,NULL);
     sema_up (&list_entry (list_pop_front (&cond->waiters),
                           struct semaphore_elem, elem)->semaphore);
 }
+
+
 
 /* Wakes up all threads, if any, waiting on COND (protected by
    LOCK).  LOCK must be held before calling this function.
