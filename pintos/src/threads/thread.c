@@ -441,7 +441,7 @@ recalculate_priority (struct thread *th, void *aux UNUSED)
 int
 thread_calculate_priority (struct thread *th)
 {
-  int priority = fix_trunc (fix_sub (fix_int (PRI_MAX), fix_unscale (th->recent_cpu, 4))) - (th->nice * 2);
+  int priority = fix_trunc (fix_sub (fix_sub (fix_int (PRI_MAX), fix_unscale (th->recent_cpu, 4)), (fix_mul (fix_frac (18, 10), fix_int (th->nice)))));
   return priority_in_range (priority);
 }
 
