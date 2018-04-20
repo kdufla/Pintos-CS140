@@ -115,12 +115,16 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
-  if (!list_empty (&sema->waiters))
+  bool has_waiters = !list_empty (&sema->waiters);
+  if (has_waiters){
     thread_unblock (list_entry (list_pop_back (&sema->waiters),
                                 struct thread, elem));
+  }    
   sema->value++;
   intr_set_level (old_level);
-  // thread_yield();
+  
+  if (has_waiters)
+    thread_yield();
 }
 
 static void sema_test_helper (void *sema_);
@@ -282,9 +286,10 @@ lock_release (struct lock *lock)
     }
   }
 
-  sema_up (&lock->semaphore);  
   cur->priority = priority;
-  thread_yield();
+  sema_up (&lock->semaphore);  
+  
+  // thread_yield();
 }
 
 /* Returns true if the current thread holds LOCK, false
