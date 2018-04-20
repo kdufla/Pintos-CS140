@@ -120,6 +120,7 @@ sema_up (struct semaphore *sema)
                                 struct thread, elem));
   sema->value++;
   intr_set_level (old_level);
+  // thread_yield();
 }
 
 static void sema_test_helper (void *sema_);
@@ -265,10 +266,18 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
 
-  enum intr_level old_level; 
+  // enum intr_level old_level; 
 
-  old_level = intr_disable ();
+  // old_level = intr_disable ();
   
+
+
+
+  sema_up (&lock->semaphore);
+  list_remove(&lock->owner_list_elem);
+  lock->holder = NULL;
+
+
 #ifdef DEB
 
   struct list_elem *e, *i;
@@ -290,19 +299,14 @@ lock_release (struct lock *lock)
   }
 
   cur->priority = priority;
-
+  int a = priority, b = cur->actual_priority;
 
 #else
   thread_current()->priority = thread_current()->actual_priority;
 #endif
 
-
-
-  sema_up (&lock->semaphore);
-  list_remove(&lock->owner_list_elem);
-  lock->holder = NULL;
-  intr_set_level (old_level);
   thread_yield();
+  // intr_set_level (old_level);
 }
 
 /* Returns true if the current thread holds LOCK, false
