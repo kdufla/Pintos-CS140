@@ -220,7 +220,10 @@ lock_acquire (struct lock *lock)
     sema_down (&lock->semaphore);
     intr_set_level (old_level);     
   }else{ // if locked donate priority and wait
-    donate_my_priority(lock->holder, c->priority);
+    if(!thread_mlfqs){
+      donate_my_priority(lock->holder, c->priority);
+    }
+    
     intr_set_level (old_level); 
     
     thread_current()->waiting_for = lock;
