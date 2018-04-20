@@ -17,6 +17,9 @@
 #include "userprog/process.h"
 #endif
 
+/*Macro for getting max value*/ 
+#define max(X, Y)  ((X) > (Y) ? (X) : (Y))
+
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
@@ -464,7 +467,19 @@ thread_set_priority (int new_priority)
   struct thread *th = thread_current ();
   int actual_priority = priority_in_range (new_priority);
   th->actual_priority = actual_priority;
-  th->priority = actual_priority;
+
+  struct lock *owned_lock;
+  struct list_elem *e, *i;
+  int priority = th->actual_priority;
+
+  for(e = list_begin(&th->locks); e != list_end(&th->locks); e = list_next(e)){
+    owned_lock = list_entry(e, struct lock, owner_list_elem);
+    for(i = list_begin(&owned_lock->semaphore.waiters); i != list_end(&owned_lock->semaphore.waiters); i = list_next(i)){
+      priority = max(priority, list_entry(i, struct thread, elem)->priority);
+    }
+  }
+  th->priority = priority;
+  readd_thread_to_ready_queue(th);
   thread_yield();
 }
 

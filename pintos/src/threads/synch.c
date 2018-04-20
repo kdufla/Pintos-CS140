@@ -271,8 +271,6 @@ lock_release (struct lock *lock)
   // old_level = intr_disable ();
   
 
-
-
   sema_up (&lock->semaphore);
   list_remove(&lock->owner_list_elem);
   lock->holder = NULL;
