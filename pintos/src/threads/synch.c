@@ -255,7 +255,6 @@ lock_try_acquire (struct lock *lock)
   return success;
 }
 
-#define DEB
 
 /* Releases LOCK, which must be owned by the current thread.
 
@@ -268,18 +267,8 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
-
-  // enum intr_level old_level; 
-
-  // old_level = intr_disable ();
-  
-
-  sema_up (&lock->semaphore);
   list_remove(&lock->owner_list_elem);
   lock->holder = NULL;
-
-
-#ifdef DEB
 
   struct list_elem *e, *i;
   int priority = thread_current()->actual_priority;
@@ -287,27 +276,15 @@ lock_release (struct lock *lock)
   struct lock *owned_lock;
 
   for(e = list_begin(&cur->locks); e != list_end(&cur->locks); e = list_next(e)){
-    
     owned_lock = list_entry(e, struct lock, owner_list_elem);
-
     for(i = list_begin(&owned_lock->semaphore.waiters); i != list_end(&owned_lock->semaphore.waiters); i = list_next(i)){
-
       priority = max(priority, list_entry(i, struct thread, elem)->priority);
-
-
-
     }
   }
 
+  sema_up (&lock->semaphore);  
   cur->priority = priority;
-  int a = priority, b = cur->actual_priority;
-
-#else
-  thread_current()->priority = thread_current()->actual_priority;
-#endif
-
   thread_yield();
-  // intr_set_level (old_level);
 }
 
 /* Returns true if the current thread holds LOCK, false

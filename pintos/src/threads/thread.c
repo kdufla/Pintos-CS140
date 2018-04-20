@@ -256,14 +256,10 @@ bool priority_list_less_func (const struct list_elem *a,
   ASSERT(list_entry(b, struct thread, elem)->magic == THREAD_MAGIC);
   
   return list_entry(a, struct thread, elem)->priority <= list_entry(b, struct thread, elem)->priority;
-
 }
 
 void add_thread_to_ready_queue(struct thread *t){
   struct list_elem *elem = &t->elem;
-  // if(elem != NULL && elem->prev != NULL && elem->next != NULL){
-  //   list_remove(elem);
-  // }
   list_insert_ordered(&ready_list, elem, priority_list_less_func, NULL);
 }
 
@@ -381,7 +377,6 @@ thread_yield (void)
   old_level = intr_disable ();
   if (cur != idle_thread)
     add_thread_to_ready_queue(cur);
-    // list_push_back (&ready_list, &cur->elem);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
