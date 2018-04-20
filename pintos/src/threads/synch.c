@@ -70,7 +70,7 @@ sema_down (struct semaphore *sema)
   old_level = intr_disable ();
   while (sema->value == 0)
     {
-      list_insert_ordered(&sema->waiters, &thread_current ()->elem, priority_list_less_func, NULL); // ordered waiting list
+      list_push_back(&sema->waiters, &thread_current ()->elem);
       thread_block ();
     }
   sema->value--;
@@ -295,8 +295,6 @@ lock_release (struct lock *lock)
   }
 
   sema_up (&lock->semaphore);  
-  
-  // thread_yield();
   }
 
 /* Returns true if the current thread holds LOCK, false
