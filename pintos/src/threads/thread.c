@@ -248,6 +248,8 @@ thread_create (const char *name, int priority,
   return tid;
 }
 
+/* Comparison function of ready threads by priorities.
+   Returns true if a is less than or equal to b, false otherwise. */
 bool priority_list_less_func (const struct list_elem *a,
                              const struct list_elem *b,
                              __attribute__((unused)) void *aux)
@@ -258,6 +260,8 @@ bool priority_list_less_func (const struct list_elem *a,
   return list_entry(a, struct thread, elem)->priority <= list_entry(b, struct thread, elem)->priority;
 }
 
+/* Adds thread to ready list so that priorities of threads
+   should be in increasing order */
 void add_thread_to_ready_queue(struct thread *t){
   struct list_elem *elem = &t->elem;
   list_insert_ordered(&ready_list, elem, priority_list_less_func, NULL);
@@ -398,6 +402,9 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
+/* Sets the load average of all threads
+   based on current value of load average and
+   the number of running or ready to run threads */
 void
 recalculate_load_avg (bool is_idle)
 {
@@ -419,6 +426,9 @@ recalculate_load_avg (bool is_idle)
   load_avg = fix_add (load_avg_weight, ready_weight);
 }
 
+/* Sets the recent cpu usage to the current thread
+   based on the current value of recent cpu usage,
+   nice value and load average of all threads*/
 void
 recalculate_recent_cpu (struct thread *th, void *aux UNUSED)
 {
@@ -650,6 +660,8 @@ next_thread_to_run (void)
   }
 }
 
+/* Comparison function of sleeping threads by their wake times.
+   Returns true if a has to be waken earlier than b, false otherwise. */
 static bool 
 cmp_wake (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
 {
@@ -657,7 +669,8 @@ cmp_wake (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED
   struct thread *t_b = list_entry(b, struct thread, elem);
   return t_a->wake_time < t_b->wake_time;
 }
-
+/* Blocks thread untill the time comes to wake up
+   given by the variable `untill` */
 void 
 thread_sleep (int64_t untill)
 {
@@ -667,21 +680,22 @@ thread_sleep (int64_t untill)
   thread_block ();
 }
 
+/* Unblocks up every thread that should be waken up at this time already */
 void 
 thread_wake (void)
 {
   if (list_empty (&sleep_list)) return;
   int64_t current_time = timer_ticks ();
-  enum intr_level old_level = intr_disable ();
-
+  
   while ( !(list_empty (&sleep_list)) ){
     struct thread * wake_t = list_entry (list_front (&sleep_list), struct thread, elem);
     if (wake_t->wake_time > current_time)
       break;
+    enum intr_level old_level = intr_disable ();
     list_pop_front (&sleep_list);
     thread_unblock (wake_t);
+    intr_set_level (old_level);
   }
-  intr_set_level (old_level);
   return;
 }
 
