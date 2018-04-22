@@ -46,6 +46,7 @@ static struct thread *initial_thread;
 /* Lock used by allocate_tid(). */
 static struct lock tid_lock;
 
+/* Load average of all threads */
 fixed_point_t load_avg;
 
 /* Stack frame for kernel_thread(). */
@@ -161,10 +162,10 @@ thread_tick (void)
 
   /* When it's multiple of whole seconds */
   if (thread_mlfqs && timer_ticks() % TIMER_FREQ == 0) {
-    enum intr_level old_level = intr_disable ();
+    // enum intr_level old_level = intr_disable ();
     recalculate_load_avg (t == idle_thread);
     thread_foreach (recalculate_recent_cpu, NULL);
-    intr_set_level (old_level);
+    // intr_set_level (old_level);
   }
 
   thread_wake();
@@ -442,15 +443,18 @@ recalculate_recent_cpu (struct thread *th, void *aux UNUSED)
 void
 recalculate_priority (struct thread *th, void *aux UNUSED)
 {
-  th->priority = thread_calculate_priority (th);
-  readd_thread_to_ready_queue(th);
+  int new_priority = thread_calculate_priority (th);
+  if (new_priority != th->priority) {
+    th->priority = new_priority;
+    readd_thread_to_ready_queue(th);
+  }
 }
 
 /* Calculates priority of given thread based on mlfqs requirement. */
 int
 thread_calculate_priority (struct thread *th)
 {
-  int priority = fix_trunc (fix_sub (fix_sub (fix_int (PRI_MAX), fix_unscale (th->recent_cpu, 4)), (fix_mul (fix_frac (18, 10), fix_int (th->nice)))));
+  int priority = fix_trunc (fix_sub (fix_int (PRI_MAX), fix_unscale (th->recent_cpu, 4))) - (th->nice * 2);
   return priority_in_range (priority);
 }
 
