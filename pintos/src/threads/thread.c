@@ -267,7 +267,7 @@ void add_thread_to_ready_queue(struct thread *t){
   list_insert_ordered(&ready_list, elem, priority_list_less_func, NULL);
 }
 
-// if thread is in ready queue update its place
+/* If thread is in ready queue update its place */
 void readd_thread_to_ready_queue(struct thread *t){
   if (t->status == THREAD_READY){
     list_remove(&(t->elem));

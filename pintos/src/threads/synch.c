@@ -191,10 +191,8 @@ lock_init (struct lock *lock)
   sema_init (&lock->semaphore, 1);
 }
 
-/*
- donate priority recursively. give holder given priority and if it
- is aiwiting for someone, give thah someone priority too and so on
-*/
+/* Donate priority recursively. give holder given priority and if it
+   is awaiting for someone, give that someone priority too and so on. */
 void
 donate_my_priority(struct thread *holder, int priority){
   holder->priority = max(holder->priority, priority);
