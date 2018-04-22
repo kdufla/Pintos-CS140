@@ -126,6 +126,46 @@ scheduler-ის არჩევის მთავარი მიზეზი 
 
 ## 1
 
+განვიხილოთ ასეთი შემთხვევა:
+```c
+void test()
+{
+	thread_create ("t1", PRI_DEFAULT + 1, t1f, &lock_and_sema); // T1 F1
+	thread_create ("t2", PRI_DEFAULT + 2, t2f, &lock_and_sema); // T4 F4
+	thread_create ("t3", PRI_DEFAULT + 3, t3f, &lock_and_sema); // T6 F6
+	sema_up (&ls.sema); // T8 F8
+} // T14 F10
+```
+
+ფუნქციებით:
+
+```c
+void t1f ( *l_and_s)
+{
+  lock_acquire (&l_and_s->lock); // T2 F2
+  sema_down (&l_and_s->sema); // T3 F3
+  lock_release (&l_and_s->lock); // T9
+} // T14
+```
+
+```c
+void t2f ( *l_and_s_)
+{
+  sema_down (&l_and_s->sema); // T5 F5
+} // T13 F9
+```
+
+```c
+void t3f ( *l_and_s_)
+{
+  lock_acquire (&l_and_s->lock); // T7 F7
+  sema_up (&l_and_s->sema); // T10
+  lock_release (&l_and_s->lock); // T11
+} // T12
+```
+
+T არის სწორი იმპლემენტაციის თანმიმდევრობა, ხოლო F არასწორის. მესამეს დონაცია სემაფორამ როცა არ გაითვალისწინა პირველის ნაცვლად მეორეს გააგრძელებინა, რომელმაც მუშაობა დაამთავრა, შემდეგ ტესტმა დაამთავრა, ხოლო პირველი და მესამე ისევ ელოდებიან ერთმანეთს.
+
 ## 2
 
 timer ticks | R(A) | R(B) | R(C) | P(A) | P(B) | P(C) | thread to run
