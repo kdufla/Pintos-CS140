@@ -200,11 +200,33 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp);
+static uint16_t get_first_token_len(const char *str);
+static char *get_first_token(char *dest, const char *src, uint16_t len);
+static bool setup_stack (void **esp, const char *args_str);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
                           bool writable);
+
+static uint16_t
+get_first_token_len(const char *str)
+{
+  uint16_t len;
+  for (len = 0; len < strlen (str); len++)
+    if (str[len] == ' ')
+      break;
+  return len;
+}
+
+static char *
+get_first_token(char *dest, const char *src, uint16_t len)
+{
+  int i;
+  for (i = 0; i < len; i++)
+    dest[i] = src[i];
+  dest[len] = '\0';
+  return dest;
+}
 
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
@@ -220,6 +242,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
   bool success = false;
   int i;
 
+  uint16_t file_name_len = get_first_token_len(file_name);
+  char *str_buf[file_name_len + 1];
+  char *file_name_ = get_first_token((char *)str_buf, file_name, file_name_len);
+
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL)
@@ -227,7 +253,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
-  file = filesys_open (file_name);
+  printf("-----------------%s\n", file_name_);
+
+  file = filesys_open (file_name_);
   if (file == NULL)
     {
       printf ("load: %s: open failed\n", file_name);
@@ -307,7 +335,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     }
 
   /* Set up stack. */
-  if (!setup_stack (esp))
+  if (!setup_stack (esp, file_name))
     goto done;
 
   /* Start address. */
@@ -432,7 +460,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (void **esp)
+setup_stack (void **esp, const char *args_str)
 {
   uint8_t *kpage;
   bool success = false;
@@ -442,9 +470,54 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
+      {
         *esp = PHYS_BASE;
+        int str_len = strlen (args_str);
+        char *args[128];
+        int num_args = 0;
+        bool null_term_needed = true;
+        while (str_len > 0)
+        {
+          str_len--;
+          if (args_str[str_len] == ' ')
+          {
+            null_term_needed = true;
+            continue;
+          }
+          if (null_term_needed)
+          {
+            null_term_needed = false;
+            args[num_args++] = (void *)(((int)(*esp)) % ((int)PHYS_BASE));
+            *((char*)(--(*esp))) = '\0';
+          }
+          *((char*)(--(*esp))) = args_str[str_len];
+        }
+        args[num_args++] = (void *)(((int)(*esp)) % ((int)PHYS_BASE));
+
+        while ((PHYS_BASE - *esp) % 4 != 0)
+          *((char*)(--(*esp))) = '\0';
+
+        int i;
+        for (i = 0; i < num_args; i++)
+        {
+          *esp = *esp - sizeof(int);
+          *((int*)(*esp)) = (int)args[i];
+        }
+
+        int argv = (int)(*esp);
+        *esp = *esp - sizeof(int);
+        *((int*)(*esp)) = argv;
+        *esp = *esp - sizeof(int);
+        *((int*)(*esp)) = num_args - 1;
+        *esp = *esp - sizeof(int);
+        *((int*)(*esp)) = 0;
+
+        //hex_dump ((uintptr_t)(*esp), (void*)(*esp), 64, true);
+      }
       else
+      {
         palloc_free_page (kpage);
+      }
     }
   return success;
 }
