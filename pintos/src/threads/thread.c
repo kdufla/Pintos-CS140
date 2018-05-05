@@ -618,12 +618,6 @@ init_thread (struct thread *t, const char *name, int priority, fixed_point_t rec
 
   memset (t, 0, sizeof *t);
 
-#ifdef USERPROG
-  list_init(&t->file_descriptors);
-  //TODO: Create stdin 
-  //TODO: Create stdout
-#endif
-
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->nice = nice;
@@ -637,6 +631,35 @@ init_thread (struct thread *t, const char *name, int priority, fixed_point_t rec
   t->actual_priority = priority;
   t->magic = THREAD_MAGIC;
   list_init(&t->locks);
+
+#ifdef USERPROG
+  /* For userprogs */
+  list_init(&t->file_descriptors);
+  //TODO: Create stdin 
+  //TODO: Create stdout
+
+  list_init(&t->child_infos);
+
+  lock_init(&(t->free_lock));
+
+  struct child_info *info;
+  info = palloc_get_page (PAL_ZERO);
+  if (info == NULL)
+    return; // Maybe we need to delete this thread if palloc fails for child_info struct?
+
+  memset (info, 0, sizeof *info);
+
+  info->tid = t->tid;
+  info->status = 0;
+  info->is_alive = true;
+
+  lock_init(&(info->exited_lock));
+  info->parent_free_lock = &(thread_current ()->free_lock);
+
+  t->info = info;
+
+  list_push_back (&(thread_current ()->child_infos), &(info->elem));
+#endif
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
