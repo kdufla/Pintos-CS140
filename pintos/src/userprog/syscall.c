@@ -9,6 +9,7 @@
 #include "process.h"
 #include "pagedir.h"
 #include "../threads/vaddr.h"
+#include "../filesys/filesys.h"
 
 
 static void syscall_handler (struct intr_frame *);
