@@ -7,10 +7,20 @@
 static void syscall_handler (struct intr_frame *);
 
 
+int practice (int i);
 static void halt(void);
 static void exit(int status);
 static pid_t exec(const chat *file);
-
+static int wait(pid_t pid);
+bool create (const char *file, unsigned initial_size);
+bool remove (const char *file);
+int open (const char *file);
+int filesize (int fd);
+int read (int fd, void *buffer, unsigned size);
+int write (int fd, const void *buffer, unsigned size);
+void seek (int fd, unsigned position);
+unsigned tell (int fd);
+void close (int fd);
 
 void
 syscall_init (void)
@@ -18,6 +28,13 @@ syscall_init (void)
 	intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
+/* syscalls */
+
+
+int practice (int i)
+{
+	return 1;
+}
 
 static void halt(void)
 {
@@ -30,20 +47,128 @@ static void exit(int status){
 }
 
 static pid_t exec(const chat *file){
-	process_execute(file);
+	return process_execute(file);
 }
 
 
+static int wait(pid_t pid)
+{
+	return -1;
+}
 
+#ifdef P3
+bool create (const char *file, unsigned initial_size)
+{
+
+}
+
+bool remove (const char *file)
+{
+
+}
+
+
+int open (const char *file)
+{
+
+}
+
+
+int filesize (int fd)
+{
+
+}
+
+
+int read (int fd, void *buffer, unsigned size)
+{
+
+}
+
+
+int write (int fd, const void *buffer, unsigned size)
+{
+
+}
+
+
+void seek (int fd, unsigned position)
+{
+
+}
+
+
+unsigned tell (int fd)
+{
+
+}
+
+
+void close (int fd)
+{
+
+}
+
+#endif
+
+#define GET_ARG_INT(i) (*(((uint32_t*)f->esp) + i))
+#define GET_ARG_POINTER(i) ((void*)GET_ARG_INT(i))
 
 static void
 syscall_handler (struct intr_frame *f UNUSED)
 {
-	uint32_t* args = ((uint32_t*) f->esp);
-	printf("System call number: %d\n", args[0]);
-	if (args[0] == SYS_EXIT) {
-		f->eax = args[1];
-		printf("%s: exit(%d)\n", &thread_current ()->name, args[1]);
-		thread_exit();
+	int sysc = GET_ARG_INT(0);
+
+	switch(sysc)
+	{
+		case SYS_HALT:
+			halt();
+			break;
+		case SYS_EXIT:
+			exit(GET_ARG_INT(1));
+			break;
+		case SYS_EXEC:
+			exec(GET_ARG_POINTER(1));
+			break;
+		case SYS_WAIT:
+			wait(GET_ARG_INT(1));
+			break;
+		case SYS_CREATE:
+			create(GET_ARG_POINTER(1), GET_ARG_INT(2));
+			break;
+		case SYS_REMOVE:
+			remove(GET_ARG_POINTER(1));
+			break;
+		case SYS_OPEN:
+			open(GET_ARG_POINTER(1));
+			break;
+		case SYS_FILESIZE:
+			filesize(GET_ARG_INT(1));
+			break;
+		case SYS_READ:
+			read(GET_ARG_INT(1), GET_ARG_POINTER(2), GET_ARG_INT(3));
+			break;
+		case SYS_WRITE:
+			write(GET_ARG_INT(1), GET_ARG_POINTER(2), GET_ARG_INT(3));
+			break;
+		case SYS_SEEK:
+			seek(GET_ARG_INT(1), GET_ARG_INT(2));
+			break;
+		case SYS_TELL:
+			tell(GET_ARG_INT(1));
+			break;
+		case SYS_CLOSE:
+			close(GET_ARG_INT(1));
+			break;
+		default:
+			exit(-1);
 	}
+
+	// uint32_t* args = ((uint32_t*) f->esp);
+	// printf("System call number: %d\n", args[0]);
+	// if (args[0] == SYS_EXIT) {
+	// 	f->eax = args[1];
+	// 	printf("%s: exit(%d)\n", &thread_current ()->name, args[1]);
+	// 	thread_exit();
+	// }
 }
