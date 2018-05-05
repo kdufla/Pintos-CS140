@@ -167,7 +167,7 @@ process_exit (void)
 
   if (cur->info->is_alive){
     cur->info->is_alive = false;
-    cur->info->status = cur->status;
+    cur->info->status = cur->exit_status;
   } else {
     list_remove(&(cur->info->elem));
     palloc_free_page(cur->info);
