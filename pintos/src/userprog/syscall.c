@@ -96,12 +96,35 @@ bool remove(const char *file)
 
 int open(const char *file)
 {
-	return *(int *)file;
+	lock_acquire(filesys_lock);
+	struct file_descriptor* fd;
+	fd = palloc_get_page (PAL_ZERO);
+  	if (fd == NULL){
+		  return -1;
+	  }
+	struct thread* curr = thread_current();
+	int fdsize = list_size(&(curr->file_descriptors));
+	fd->id = fdsize;
+	fd->file = filesys_open(file);
+    list_push_back(&(curr->file_descriptors),&(fd->descriptors));
+	lock_release(filesys_lock);
+	return fd->id;
 }
 
 int filesize(int fd)
 {
-	return fd;
+	lock_acquire(filesys_lock);
+	struct list current_fd_list = thread_current()->file_descriptors;
+	struct list_elem *e;
+	e = list_begin(&current_fd_list);
+	int i;
+	for(i=0; i< fd; i++){
+		e = list_next(e);
+	}
+	struct file_descriptor* current_fd = list_entry (e, struct file_descriptor, descriptors); 
+	int result = file_length(current_fd->file);
+	lock_release(filesys_lock);
+	return result;
 }
 
 int read(int fd, void *buffer, unsigned size)
@@ -116,18 +139,49 @@ int write(int fd, const void *buffer, unsigned size)
 
 void seek(int fd, unsigned position)
 {
-	int b = fd + position;
-	b += 7;
+		lock_acquire(filesys_lock);
+	struct list current_fd_list = thread_current()->file_descriptors;
+	struct list_elem *e;
+	e = list_begin(&current_fd_list);
+	int i;
+	for(i=0; i< fd; i++){
+		e = list_next(e);
+	}
+	struct file_descriptor* current_fd = list_entry (e, struct file_descriptor, descriptors); 
+	file_seek(current_fd->file, position);
+	lock_release(filesys_lock);
 }
 
 unsigned tell(int fd)
 {
-	return (unsigned)fd;
+	lock_acquire(filesys_lock);
+	struct list current_fd_list = thread_current()->file_descriptors;
+	struct list_elem *e;
+	e = list_begin(&current_fd_list);
+	int i;
+	for(i=0; i< fd; i++){
+		e = list_next(e);
+	}
+	struct file_descriptor* current_fd = list_entry (e, struct file_descriptor, descriptors); 
+	int result = file_tell(current_fd->file);
+	lock_release(filesys_lock);
+	return result;
 }
 
 void close(int fd)
 {
-	fd++;
+	lock_acquire(filesys_lock);
+	struct list current_fd_list = thread_current()->file_descriptors;
+	struct list_elem *e;
+	e = list_begin(&current_fd_list);
+	int i;
+	for(i=0; i< fd; i++){
+		e = list_next(e);
+	}
+	struct file_descriptor* current_fd = list_entry (e, struct file_descriptor, descriptors);
+	list_remove(&(current_fd->descriptors));
+	file_close(current_fd->file);
+	lock_release(filesys_lock);
 }
 
 #endif
