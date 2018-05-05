@@ -10,6 +10,8 @@
 #include "pagedir.h"
 #include "../threads/vaddr.h"
 #include "../filesys/filesys.h"
+#include "../lib/kernel/stdio.h"
+#include "../devices/input.h"
 
 static void syscall_handler(struct intr_frame *);
 struct lock filesys_lock;
@@ -59,9 +61,7 @@ static void halt(void)
 
 static void exit(int status)
 {
-
-	struct thread *cur = thread_current();
-	cur->exit_status = status;
+	thread_current()->exit_status = status;
 	thread_exit();
 }
 
@@ -74,8 +74,7 @@ static int wait(pid_t pid)
 {
 	return process_wait(pid);
 }
-#define P3
-#ifdef P3
+
 bool create(const char *file, unsigned initial_size)
 {
 	bool result;
@@ -143,12 +142,71 @@ int filesize(int fd)
 
 int read(int fd, void *buffer, unsigned size)
 {
-	return fd + *(int *)buffer + (int)size;
+	if (fd == 0)
+	{
+		while (size--)
+		{
+			*(char *)buffer++ = input_getc();
+		}
+		return size;
+	}
+
+	if (fd == 1)
+	{
+		return 0;
+	}
+
+	int result = 0;
+
+	lock_acquire(&filesys_lock);
+	struct list current_fd_list = thread_current()->file_descriptors;
+	struct list_elem *e;
+
+	for (e = list_begin(&current_fd_list); e != list_end(&current_fd_list); e = list_next(e))
+	{
+		struct file_descriptor *current_fd = list_entry(e, struct file_descriptor, descriptors);
+		if (current_fd->id == fd)
+		{
+			result = file_read(current_fd->file, buffer, size);
+			break;
+		}
+	}
+
+	lock_release(&filesys_lock);
+	return result;
 }
 
 int write(int fd, const void *buffer, unsigned size)
 {
-	return fd + *(int *)buffer + (int)size;
+	if (fd == 0)
+	{
+		return 0;
+	}
+
+	if (fd == 1)
+	{
+		putbuf(buffer, size);
+		return size;
+	}
+
+	int result = 0;
+
+	lock_acquire(&filesys_lock);
+	struct list current_fd_list = thread_current()->file_descriptors;
+	struct list_elem *e;
+
+	for (e = list_begin(&current_fd_list); e != list_end(&current_fd_list); e = list_next(e))
+	{
+		struct file_descriptor *current_fd = list_entry(e, struct file_descriptor, descriptors);
+		if (current_fd->id == fd)
+		{
+			result = file_write(current_fd->file, buffer, size);
+			break;
+		}
+	}
+
+	lock_release(&filesys_lock);
+	return result;
 }
 
 void seek(int fd, unsigned position)
@@ -213,8 +271,6 @@ void close(int fd)
 
 	lock_release(&filesys_lock);
 }
-
-#endif
 
 /* given pointer and check if every byte of this pointer is valid */
 static uint32_t *get_arg_int(uint32_t *p)
