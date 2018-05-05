@@ -146,6 +146,37 @@ process_exit (void)
       pagedir_destroy (pd);
     }
 
+  lock_acquire (&(cur->free_lock));
+
+  struct list_elem *e;
+  struct list *list = &(cur->child_infos);
+  struct child_info *info;
+  for (e = list_next(list_begin (list)); e != list_tail (list); e = list_next (e))  // tril tu end?! sakitxavi ai es aris;  
+  {
+    info = list_entry(list_prev(e), struct child_info, elem);
+    if (info->is_alive){
+      info->is_alive = false;
+    } else {
+      list_remove(&(info->elem));
+      palloc_free_page(info);
+    }
+  }
+
+  lock_release (&(cur->free_lock));
+  lock_acquire (cur->info->parent_free_lock);
+
+  if (cur->info->is_alive){
+    cur->info->is_alive = false;
+    cur->info->status = cur->status;
+  } else {
+    list_remove(&(cur->info->elem));
+    palloc_free_page(cur->info);
+  }
+
+  lock_release (cur->info->parent_free_lock);
+
+  lock_release(&(cur->info->exited_lock));
+
   // sema_up (&temporary);
 }
 

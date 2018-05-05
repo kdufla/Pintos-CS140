@@ -5,157 +5,178 @@
 #include "threads/thread.h"
 #include "threads/synch.h"
 #include "threads/palloc.h"
+#include "../devices/shutdown.h"
+#include "process.h"
+#include "pagedir.h"
+#include "../threads/vaddr.h"
 
-static void syscall_handler (struct intr_frame *);
+static void syscall_handler(struct intr_frame *);
 
-
-int practice (int i);
+int practice(int i);
 static void halt(void);
 static void exit(int status);
-static pid_t exec(const chat *file);
+static pid_t exec(const char *file);
 static int wait(pid_t pid);
-bool create (const char *file, unsigned initial_size);
-bool remove (const char *file);
-int open (const char *file);
-int filesize (int fd);
-int read (int fd, void *buffer, unsigned size);
-int write (int fd, const void *buffer, unsigned size);
-void seek (int fd, unsigned position);
-unsigned tell (int fd);
-void close (int fd);
+bool create(const char *file, unsigned initial_size);
+bool remove(const char *file);
+int open(const char *file);
+int filesize(int fd);
+int read(int fd, void *buffer, unsigned size);
+int write(int fd, const void *buffer, unsigned size);
+void seek(int fd, unsigned position);
+unsigned tell(int fd);
+void close(int fd);
 
-void
-syscall_init (void)
+void syscall_init(void)
 {
-	intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+	intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
+}
+
+static bool is_valid_address(void *p)
+{
+	if (p == NULL || !is_user_vaddr((uint32_t *)p) || pagedir_get_page(thread_current()->pagedir, (uint32_t *)p) == NULL)
+	{
+		return false;
+	}
+
+	return true;
 }
 
 /* syscalls */
 
-
-int practice (int i)
+int practice(int i)
 {
-	return 1;
+	return i + 1;
 }
 
 static void halt(void)
 {
-	shutdown_power_off(void);
+	shutdown_power_off();
 }
 
 static void exit(int status){
 
 	struct thread *cur = thread_current ();
-
-	lock_acquire (&(cur->free_lock));
-
-  struct list_elem *e;
-  struct list *list = &(cur->child_infos);
-  struct child_info *info;
-  for (e = list_next(list_begin (list)); e != list_tail (list); e = list_next (e))  // tril tu end?! sakitxavi ai es aris;  
-  {
-    info = list_entry(list_prev(e), struct child_info, elem);
-    if (info->is_alive){
-      info->is_alive = false;
-    } else {
-      list_remove(&(info->elem));
-      palloc_free_page(info);
-    }
-  }
-
-	lock_release (&(cur->free_lock));
-  lock_acquire (cur->info->parent_free_lock);
-
-  if (cur->info->is_alive){
-    cur->info->is_alive = false;
-    cur->info->status = status;
-  } else {
-    list_remove(&(cur->info->elem));
-    palloc_free_page(cur->info);
-  }
-
-  lock_release (cur->info->parent_free_lock);
-
-  lock_release(&(cur->info->exited_lock));
+	cur->status = status;
 	thread_exit();
 }
 
-static pid_t exec(const chat *file){
+static pid_t exec(const char *file)
+{
 	return process_execute(file);
 }
-
 
 static int wait(pid_t pid)
 {
 	return process_wait (pid);
 }
-
+#define P3
 #ifdef P3
-bool create (const char *file, unsigned initial_size)
+bool create(const char *file, unsigned initial_size)
 {
-
+	return *(int *)file + (int)initial_size;
 }
 
-bool remove (const char *file)
+bool remove(const char *file)
 {
-
+	return *(int *)file;
 }
 
-
-int open (const char *file)
+int open(const char *file)
 {
-
+	return *(int *)file;
 }
 
-
-int filesize (int fd)
+int filesize(int fd)
 {
-
+	return fd;
 }
 
-
-int read (int fd, void *buffer, unsigned size)
+int read(int fd, void *buffer, unsigned size)
 {
-
+	return fd + *(int *)buffer + (int)size;
 }
 
-
-int write (int fd, const void *buffer, unsigned size)
+int write(int fd, const void *buffer, unsigned size)
 {
-
+	return fd + *(int *)buffer + (int)size;
 }
 
-
-void seek (int fd, unsigned position)
+void seek(int fd, unsigned position)
 {
-
+	int b = fd + position;
+	b += 7;
 }
 
-
-unsigned tell (int fd)
+unsigned tell(int fd)
 {
-
+	return (unsigned)fd;
 }
 
-
-void close (int fd)
+void close(int fd)
 {
-
+	fd++;
 }
 
 #endif
 
-#define GET_ARG_INT(i) (*(((uint32_t*)f->esp) + i))
-#define GET_ARG_POINTER(i) ((void*)GET_ARG_INT(i))
+/* given pointer and check if every byte of this pointer is valid */
+static uint32_t *get_arg_int(uint32_t *p)
+{
+	if (is_valid_address(p) && is_valid_address((char *)p + 3))
+	{
+		return p;
+	}
+
+	exit(-1);
+	
+	return p;
+}
+
+#define NO_LEN -7
+
+/* given pointer p of memory with size len bytes
+ * if len is NO_LEN it's guaranteed that memory ends with NULL/'\0' (false)
+ * check validity of every byte's address
+ * */
+static void *get_arg_pointer(char *p, int len)
+{
+	void *rv = (void *)p; 
+
+	if (len == NO_LEN)
+	{
+		do
+		{
+			if (!is_valid_address(p))
+			{
+				exit(-1);
+			}
+		} while (++p - 1);
+	}
+	else
+	{
+		while (len-- > 0)
+		{
+			if (!is_valid_address(p++))
+			{
+				exit(-1);
+			}
+		}
+	}
+	return rv;
+}
+
+#define GET_ARG_INT(i) (*get_arg_int(((uint32_t *)f->esp) + i))
+#define GET_ARG_POINTER(i, len) (get_arg_pointer((char *)GET_ARG_INT(i), len))
 
 static void
-syscall_handler (struct intr_frame *f UNUSED)
+syscall_handler(struct intr_frame *f UNUSED)
 {
-	int sysc = GET_ARG_INT(0);
+	int sysc_num = GET_ARG_INT(0);
 
-	uint32_t rv = NULL;
+	uint32_t rv = 8675309;
 
-	switch(sysc)
+	switch (sysc_num)
 	{
 		case SYS_HALT:
 			halt();
@@ -164,48 +185,53 @@ syscall_handler (struct intr_frame *f UNUSED)
 			exit(GET_ARG_INT(1));
 			break;
 		case SYS_EXEC:
-			rv = (uint32_t) exec(GET_ARG_POINTER(1));
+			rv = (uint32_t)exec(GET_ARG_POINTER(1, NO_LEN));
 			break;
 		case SYS_WAIT:
-			rv = (uint32_t) wait(GET_ARG_INT(1));
+			rv = (uint32_t)wait(GET_ARG_INT(1));
 			break;
 		case SYS_CREATE:
-			rv = (uint32_t) create(GET_ARG_POINTER(1), GET_ARG_INT(2));
+			rv = (uint32_t)create(GET_ARG_POINTER(1, NO_LEN), GET_ARG_INT(2));
 			break;
 		case SYS_REMOVE:
-			rv = (uint32_t) remove(GET_ARG_POINTER(1));
+			rv = (uint32_t)remove(GET_ARG_POINTER(1, NO_LEN));
 			break;
 		case SYS_OPEN:
-			rv = (uint32_t) open(GET_ARG_POINTER(1));
+			rv = (uint32_t)open(GET_ARG_POINTER(1, NO_LEN));
 			break;
 		case SYS_FILESIZE:
-			rv = (uint32_t) filesize(GET_ARG_INT(1));
+			rv = (uint32_t)filesize(GET_ARG_INT(1));
 			break;
 		case SYS_READ:
-			rv = (uint32_t) read(GET_ARG_INT(1), GET_ARG_POINTER(2), GET_ARG_INT(3));
+			rv = (uint32_t)read(GET_ARG_INT(1), GET_ARG_POINTER(2, GET_ARG_INT(3)), GET_ARG_INT(3));
 			break;
 		case SYS_WRITE:
-			rv = (uint32_t) write(GET_ARG_INT(1), GET_ARG_POINTER(2), GET_ARG_INT(3));
+			rv = (uint32_t)write(GET_ARG_INT(1), GET_ARG_POINTER(2, GET_ARG_INT(3)), GET_ARG_INT(3));
 			break;
 		case SYS_SEEK:
 			seek(GET_ARG_INT(1), GET_ARG_INT(2));
 			break;
 		case SYS_TELL:
-			rv = (uint32_t) tell(GET_ARG_INT(1));
+			rv = (uint32_t)tell(GET_ARG_INT(1));
 			break;
 		case SYS_CLOSE:
 			close(GET_ARG_INT(1));
+			break;
+		case SYS_PRACTICE:
+			practice(GET_ARG_INT(1));
 			break;
 		default:
 			exit(-1);
 	}
 
-
-
 	// uint32_t* args = ((uint32_t*) f->esp);
 	// printf("System call number: %d\n", args[0]);
 	// if (args[0] == SYS_EXIT) {
-	// 	f->eax = args[1];
+
+	if (rv != 8675309)
+	{
+		f->eax = rv;
+	}
 	// 	printf("%s: exit(%d)\n", &thread_current ()->name, args[1]);
 	// 	thread_exit();
 	// }
