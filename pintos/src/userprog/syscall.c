@@ -139,8 +139,17 @@ int write(int fd, const void *buffer, unsigned size)
 
 void seek(int fd, unsigned position)
 {
-	int b = fd + position;
-	b += 7;
+		lock_acquire(filesys_lock);
+	struct list current_fd_list = thread_current()->file_descriptors;
+	struct list_elem *e;
+	e = list_begin(&current_fd_list);
+	int i;
+	for(i=0; i< fd; i++){
+		e = list_next(e);
+	}
+	struct file_descriptor* current_fd = list_entry (e, struct file_descriptor, descriptors); 
+	file_seek(current_fd->file, position);
+	lock_release(filesys_lock);
 }
 
 unsigned tell(int fd)
