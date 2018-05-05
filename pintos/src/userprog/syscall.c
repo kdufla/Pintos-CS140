@@ -11,8 +11,7 @@
 #include "../threads/vaddr.h"
 #include "../filesys/filesys.h"
 
-
-static void syscall_handler (struct intr_frame *);
+static void syscall_handler(struct intr_frame *);
 struct lock filesys_lock;
 
 int practice(int i);
@@ -58,9 +57,10 @@ static void halt(void)
 	shutdown_power_off();
 }
 
-static void exit(int status){
+static void exit(int status)
+{
 
-	struct thread *cur = thread_current ();
+	struct thread *cur = thread_current();
 	cur->exit_status = status;
 	thread_exit();
 }
@@ -72,7 +72,7 @@ static pid_t exec(const char *file)
 
 static int wait(pid_t pid)
 {
-	return process_wait (pid);
+	return process_wait(pid);
 }
 #define P3
 #ifdef P3
@@ -80,7 +80,7 @@ bool create(const char *file, unsigned initial_size)
 {
 	bool result;
 	lock_acquire(&filesys_lock);
-	result = filesys_create (file, initial_size);
+	result = filesys_create(file, initial_size);
 	lock_release(&filesys_lock);
 	return result;
 }
@@ -97,21 +97,25 @@ bool remove(const char *file)
 int open(const char *file)
 {
 	lock_acquire(&filesys_lock);
-	struct file_descriptor* fd;
-	fd = palloc_get_page (PAL_ZERO);
-  	if (fd == NULL){
-		  return -1;
-	  }
-	struct thread* curr = thread_current();
+	struct file_descriptor *fd;
+	fd = palloc_get_page(PAL_ZERO);
+	if (fd == NULL)
+	{
+		return -1;
+	}
+	struct thread *curr = thread_current();
 
-	if(list_size(&(curr->file_descriptors))){
+	if (list_size(&(curr->file_descriptors)))
+	{
 		fd->id = list_entry(list_rbegin(&(curr->file_descriptors)), struct file_descriptor, descriptors)->id + 1;
-	}else{
+	}
+	else
+	{
 		fd->id = 2;
 	}
 
 	fd->file = filesys_open(file);
-    list_push_back(&(curr->file_descriptors),&(fd->descriptors));
+	list_push_back(&(curr->file_descriptors), &(fd->descriptors));
 	lock_release(&filesys_lock);
 	return fd->id;
 }
@@ -123,12 +127,14 @@ int filesize(int fd)
 	struct list_elem *e;
 	int result = -1;
 
-	for (e = list_begin (&current_fd_list); e != list_end (&current_fd_list); e = list_next (e)){
-		struct file_descriptor* current_fd = list_entry (e, struct file_descriptor, descriptors); 
-		if(current_fd->id == fd){
+	for (e = list_begin(&current_fd_list); e != list_end(&current_fd_list); e = list_next(e))
+	{
+		struct file_descriptor *current_fd = list_entry(e, struct file_descriptor, descriptors);
+		if (current_fd->id == fd)
+		{
 			result = file_length(current_fd->file);
-			break;	
-		}	
+			break;
+		}
 	}
 
 	lock_release(&filesys_lock);
@@ -152,12 +158,14 @@ void seek(int fd, unsigned position)
 	struct list_elem *e;
 	e = list_begin(&current_fd_list);
 
-	for (e = list_begin (&current_fd_list); e != list_end (&current_fd_list); e = list_next (e)){
-		struct file_descriptor* current_fd = list_entry (e, struct file_descriptor, descriptors); 
-		if(current_fd->id == fd){
+	for (e = list_begin(&current_fd_list); e != list_end(&current_fd_list); e = list_next(e))
+	{
+		struct file_descriptor *current_fd = list_entry(e, struct file_descriptor, descriptors);
+		if (current_fd->id == fd)
+		{
 			file_seek(current_fd->file, position);
-			break;	
-		}	
+			break;
+		}
 	}
 
 	lock_release(&filesys_lock);
@@ -170,13 +178,15 @@ unsigned tell(int fd)
 	struct list_elem *e;
 	e = list_begin(&current_fd_list);
 	int result = 0;
-	
-	for (e = list_begin (&current_fd_list); e != list_end (&current_fd_list); e = list_next (e)){
-		struct file_descriptor* current_fd = list_entry (e, struct file_descriptor, descriptors); 
-		if(current_fd->id == fd){
+
+	for (e = list_begin(&current_fd_list); e != list_end(&current_fd_list); e = list_next(e))
+	{
+		struct file_descriptor *current_fd = list_entry(e, struct file_descriptor, descriptors);
+		if (current_fd->id == fd)
+		{
 			result = file_tell(current_fd->file);
-			break;	
-		}	
+			break;
+		}
 	}
 
 	lock_release(&filesys_lock);
@@ -189,14 +199,16 @@ void close(int fd)
 	struct list current_fd_list = thread_current()->file_descriptors;
 	struct list_elem *e;
 	e = list_begin(&current_fd_list);
-	
-	for (e = list_begin (&current_fd_list); e != list_end (&current_fd_list); e = list_next (e)){
-		struct file_descriptor* current_fd = list_entry (e, struct file_descriptor, descriptors); 
-		if(current_fd->id == fd){
+
+	for (e = list_begin(&current_fd_list); e != list_end(&current_fd_list); e = list_next(e))
+	{
+		struct file_descriptor *current_fd = list_entry(e, struct file_descriptor, descriptors);
+		if (current_fd->id == fd)
+		{
 			list_remove(&(current_fd->descriptors));
 			file_close(current_fd->file);
-			break;	
-		}	
+			break;
+		}
 	}
 
 	lock_release(&filesys_lock);
@@ -213,7 +225,7 @@ static uint32_t *get_arg_int(uint32_t *p)
 	}
 
 	exit(-1);
-	
+
 	return p;
 }
 
@@ -225,7 +237,7 @@ static uint32_t *get_arg_int(uint32_t *p)
  * */
 static void *get_arg_pointer(char *p, int len)
 {
-	void *rv = (void *)p; 
+	void *rv = (void *)p;
 
 	if (len == NO_LEN)
 	{
@@ -262,50 +274,50 @@ syscall_handler(struct intr_frame *f UNUSED)
 
 	switch (sysc_num)
 	{
-		case SYS_HALT:
-			halt();
-			break;
-		case SYS_EXIT:
-			exit(GET_ARG_INT(1));
-			break;
-		case SYS_EXEC:
-			rv = (uint32_t)exec(GET_ARG_POINTER(1, NO_LEN));
-			break;
-		case SYS_WAIT:
-			rv = (uint32_t)wait(GET_ARG_INT(1));
-			break;
-		case SYS_CREATE:
-			rv = (uint32_t)create(GET_ARG_POINTER(1, NO_LEN), GET_ARG_INT(2));
-			break;
-		case SYS_REMOVE:
-			rv = (uint32_t)remove(GET_ARG_POINTER(1, NO_LEN));
-			break;
-		case SYS_OPEN:
-			rv = (uint32_t)open(GET_ARG_POINTER(1, NO_LEN));
-			break;
-		case SYS_FILESIZE:
-			rv = (uint32_t)filesize(GET_ARG_INT(1));
-			break;
-		case SYS_READ:
-			rv = (uint32_t)read(GET_ARG_INT(1), GET_ARG_POINTER(2, GET_ARG_INT(3)), GET_ARG_INT(3));
-			break;
-		case SYS_WRITE:
-			rv = (uint32_t)write(GET_ARG_INT(1), GET_ARG_POINTER(2, GET_ARG_INT(3)), GET_ARG_INT(3));
-			break;
-		case SYS_SEEK:
-			seek(GET_ARG_INT(1), GET_ARG_INT(2));
-			break;
-		case SYS_TELL:
-			rv = (uint32_t)tell(GET_ARG_INT(1));
-			break;
-		case SYS_CLOSE:
-			close(GET_ARG_INT(1));
-			break;
-		case SYS_PRACTICE:
-			practice(GET_ARG_INT(1));
-			break;
-		default:
-			exit(-1);
+	case SYS_HALT:
+		halt();
+		break;
+	case SYS_EXIT:
+		exit(GET_ARG_INT(1));
+		break;
+	case SYS_EXEC:
+		rv = (uint32_t)exec(GET_ARG_POINTER(1, NO_LEN));
+		break;
+	case SYS_WAIT:
+		rv = (uint32_t)wait(GET_ARG_INT(1));
+		break;
+	case SYS_CREATE:
+		rv = (uint32_t)create(GET_ARG_POINTER(1, NO_LEN), GET_ARG_INT(2));
+		break;
+	case SYS_REMOVE:
+		rv = (uint32_t)remove(GET_ARG_POINTER(1, NO_LEN));
+		break;
+	case SYS_OPEN:
+		rv = (uint32_t)open(GET_ARG_POINTER(1, NO_LEN));
+		break;
+	case SYS_FILESIZE:
+		rv = (uint32_t)filesize(GET_ARG_INT(1));
+		break;
+	case SYS_READ:
+		rv = (uint32_t)read(GET_ARG_INT(1), GET_ARG_POINTER(2, GET_ARG_INT(3)), GET_ARG_INT(3));
+		break;
+	case SYS_WRITE:
+		rv = (uint32_t)write(GET_ARG_INT(1), GET_ARG_POINTER(2, GET_ARG_INT(3)), GET_ARG_INT(3));
+		break;
+	case SYS_SEEK:
+		seek(GET_ARG_INT(1), GET_ARG_INT(2));
+		break;
+	case SYS_TELL:
+		rv = (uint32_t)tell(GET_ARG_INT(1));
+		break;
+	case SYS_CLOSE:
+		close(GET_ARG_INT(1));
+		break;
+	case SYS_PRACTICE:
+		practice(GET_ARG_INT(1));
+		break;
+	default:
+		exit(-1);
 	}
 
 	// uint32_t* args = ((uint32_t*) f->esp);
