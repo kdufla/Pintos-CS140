@@ -3,6 +3,8 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "../devices/shutdown.h"
+#include "process.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -10,7 +12,7 @@ static void syscall_handler (struct intr_frame *);
 int practice (int i);
 static void halt(void);
 static void exit(int status);
-static pid_t exec(const chat *file);
+static pid_t exec(const char *file);
 static int wait(pid_t pid);
 bool create (const char *file, unsigned initial_size);
 bool remove (const char *file);
@@ -33,12 +35,12 @@ syscall_init (void)
 
 int practice (int i)
 {
-	return 1;
+	return i+1;
 }
 
 static void halt(void)
 {
-	shutdown_power_off(void);
+	shutdown_power_off();
 }
 
 static void exit(int status){
@@ -46,67 +48,68 @@ static void exit(int status){
 	thread_exit();
 }
 
-static pid_t exec(const chat *file){
+static pid_t exec(const char *file){
 	return process_execute(file);
 }
 
 
 static int wait(pid_t pid)
 {
-	return -1;
+	return pid;
 }
-
+#define P3
 #ifdef P3
 bool create (const char *file, unsigned initial_size)
 {
-
+	return *(int*)file + (int)initial_size;
 }
 
 bool remove (const char *file)
 {
-
+	return *(int*)file;
 }
 
 
 int open (const char *file)
 {
-
+	return *(int*)file;
 }
 
 
 int filesize (int fd)
 {
-
+	return fd;
 }
 
 
 int read (int fd, void *buffer, unsigned size)
 {
-
+	return fd + *(int*)buffer + (int)size;
 }
 
 
 int write (int fd, const void *buffer, unsigned size)
 {
-
+	return fd + *(int*)buffer + (int)size;
 }
 
 
 void seek (int fd, unsigned position)
 {
-
+	int b = fd + position;
+	b+=7;
 }
 
 
 unsigned tell (int fd)
 {
-
+	return (unsigned)fd;
 }
 
 
 void close (int fd)
 {
-
+	fd++;
 }
 
 #endif
@@ -159,6 +162,9 @@ syscall_handler (struct intr_frame *f UNUSED)
 			break;
 		case SYS_CLOSE:
 			close(GET_ARG_INT(1));
+			break;
+		case SYS_PRACTICE:
+			practice(GET_ARG_INT(1));
 			break;
 		default:
 			exit(-1);
