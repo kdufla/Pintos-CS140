@@ -122,6 +122,8 @@ syscall_handler (struct intr_frame *f UNUSED)
 {
 	int sysc = GET_ARG_INT(0);
 
+	uint32_t rv = NULL;
+
 	switch(sysc)
 	{
 		case SYS_HALT:
@@ -131,34 +133,34 @@ syscall_handler (struct intr_frame *f UNUSED)
 			exit(GET_ARG_INT(1));
 			break;
 		case SYS_EXEC:
-			exec(GET_ARG_POINTER(1));
+			rv = (uint32_t) exec(GET_ARG_POINTER(1));
 			break;
 		case SYS_WAIT:
-			wait(GET_ARG_INT(1));
+			rv = (uint32_t) wait(GET_ARG_INT(1));
 			break;
 		case SYS_CREATE:
-			create(GET_ARG_POINTER(1), GET_ARG_INT(2));
+			rv = (uint32_t) create(GET_ARG_POINTER(1), GET_ARG_INT(2));
 			break;
 		case SYS_REMOVE:
-			remove(GET_ARG_POINTER(1));
+			rv = (uint32_t) remove(GET_ARG_POINTER(1));
 			break;
 		case SYS_OPEN:
-			open(GET_ARG_POINTER(1));
+			rv = (uint32_t) open(GET_ARG_POINTER(1));
 			break;
 		case SYS_FILESIZE:
-			filesize(GET_ARG_INT(1));
+			rv = (uint32_t) filesize(GET_ARG_INT(1));
 			break;
 		case SYS_READ:
-			read(GET_ARG_INT(1), GET_ARG_POINTER(2), GET_ARG_INT(3));
+			rv = (uint32_t) read(GET_ARG_INT(1), GET_ARG_POINTER(2), GET_ARG_INT(3));
 			break;
 		case SYS_WRITE:
-			write(GET_ARG_INT(1), GET_ARG_POINTER(2), GET_ARG_INT(3));
+			rv = (uint32_t) write(GET_ARG_INT(1), GET_ARG_POINTER(2), GET_ARG_INT(3));
 			break;
 		case SYS_SEEK:
 			seek(GET_ARG_INT(1), GET_ARG_INT(2));
 			break;
 		case SYS_TELL:
-			tell(GET_ARG_INT(1));
+			rv = (uint32_t) tell(GET_ARG_INT(1));
 			break;
 		case SYS_CLOSE:
 			close(GET_ARG_INT(1));
@@ -167,8 +169,10 @@ syscall_handler (struct intr_frame *f UNUSED)
 			practice(GET_ARG_INT(1));
 			break;
 		default:
-			exit(-1);
+			rv = (uint32_t) exit(-1);
 	}
+
+
 
 	// uint32_t* args = ((uint32_t*) f->esp);
 	// printf("System call number: %d\n", args[0]);
