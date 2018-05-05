@@ -13,7 +13,7 @@
 
 
 static void syscall_handler (struct intr_frame *);
-struct lock * filesys_lock;
+struct lock filesys_lock;
 
 int practice(int i);
 static void halt(void);
@@ -32,7 +32,7 @@ void close(int fd);
 
 void syscall_init(void)
 {
-	lock_init(filesys_lock);
+	lock_init(&filesys_lock);
 	intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
@@ -79,51 +79,59 @@ static int wait(pid_t pid)
 bool create(const char *file, unsigned initial_size)
 {
 	bool result;
-	lock_acquire(filesys_lock);
+	lock_acquire(&filesys_lock);
 	result = filesys_create (file, initial_size);
-	lock_release(filesys_lock);
+	lock_release(&filesys_lock);
 	return result;
 }
 
 bool remove(const char *file)
 {
 	bool result;
-	lock_acquire(filesys_lock);
+	lock_acquire(&filesys_lock);
 	result = filesys_remove(file);
-	lock_release(filesys_lock);
+	lock_release(&filesys_lock);
 	return result;
 }
 
 int open(const char *file)
 {
-	lock_acquire(filesys_lock);
+	lock_acquire(&filesys_lock);
 	struct file_descriptor* fd;
 	fd = palloc_get_page (PAL_ZERO);
   	if (fd == NULL){
 		  return -1;
 	  }
 	struct thread* curr = thread_current();
-	int fdsize = list_size(&(curr->file_descriptors));
-	fd->id = fdsize;
+
+	if(list_size(&(curr->file_descriptors))){
+		fd->id = list_entry(list_rbegin(&(curr->file_descriptors)), struct file_descriptor, descriptors)->id + 1;
+	}else{
+		fd->id = 2;
+	}
+
 	fd->file = filesys_open(file);
     list_push_back(&(curr->file_descriptors),&(fd->descriptors));
-	lock_release(filesys_lock);
+	lock_release(&filesys_lock);
 	return fd->id;
 }
 
 int filesize(int fd)
 {
-	lock_acquire(filesys_lock);
+	lock_acquire(&filesys_lock);
 	struct list current_fd_list = thread_current()->file_descriptors;
 	struct list_elem *e;
-	e = list_begin(&current_fd_list);
-	int i;
-	for(i=0; i< fd; i++){
-		e = list_next(e);
+	int result = -1;
+
+	for (e = list_begin (&current_fd_list); e != list_end (&current_fd_list); e = list_next (e)){
+		struct file_descriptor* current_fd = list_entry (e, struct file_descriptor, descriptors); 
+		if(current_fd->id == fd){
+			result = file_length(current_fd->file);
+			break;	
+		}	
 	}
-	struct file_descriptor* current_fd = list_entry (e, struct file_descriptor, descriptors); 
-	int result = file_length(current_fd->file);
-	lock_release(filesys_lock);
+
+	lock_release(&filesys_lock);
 	return result;
 }
 
@@ -145,34 +153,41 @@ void seek(int fd, unsigned position)
 
 unsigned tell(int fd)
 {
-	lock_acquire(filesys_lock);
+	lock_acquire(&filesys_lock);
 	struct list current_fd_list = thread_current()->file_descriptors;
 	struct list_elem *e;
 	e = list_begin(&current_fd_list);
-	int i;
-	for(i=0; i< fd; i++){
-		e = list_next(e);
+	int result = 0;
+	
+	for (e = list_begin (&current_fd_list); e != list_end (&current_fd_list); e = list_next (e)){
+		struct file_descriptor* current_fd = list_entry (e, struct file_descriptor, descriptors); 
+		if(current_fd->id == fd){
+			int result = file_tell(current_fd->file);
+			break;	
+		}	
 	}
-	struct file_descriptor* current_fd = list_entry (e, struct file_descriptor, descriptors); 
-	int result = file_tell(current_fd->file);
-	lock_release(filesys_lock);
+
+	lock_release(&filesys_lock);
 	return result;
 }
 
 void close(int fd)
 {
-	lock_acquire(filesys_lock);
+	lock_acquire(&filesys_lock);
 	struct list current_fd_list = thread_current()->file_descriptors;
 	struct list_elem *e;
 	e = list_begin(&current_fd_list);
-	int i;
-	for(i=0; i< fd; i++){
-		e = list_next(e);
+	
+	for (e = list_begin (&current_fd_list); e != list_end (&current_fd_list); e = list_next (e)){
+		struct file_descriptor* current_fd = list_entry (e, struct file_descriptor, descriptors); 
+		if(current_fd->id == fd){
+			list_remove(&(current_fd->descriptors));
+			file_close(current_fd->file);
+			break;	
+		}	
 	}
-	struct file_descriptor* current_fd = list_entry (e, struct file_descriptor, descriptors);
-	list_remove(&(current_fd->descriptors));
-	file_close(current_fd->file);
-	lock_release(filesys_lock);
+
+	lock_release(&filesys_lock);
 }
 
 #endif
