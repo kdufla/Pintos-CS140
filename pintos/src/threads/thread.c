@@ -70,6 +70,7 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
+bool is_not_init = false;
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -637,28 +638,30 @@ init_thread (struct thread *t, const char *name, int priority, fixed_point_t rec
   list_init(&t->file_descriptors);
   //TODO: Create stdin 
   //TODO: Create stdout
-
   list_init(&t->child_infos);
-
   lock_init(&(t->free_lock));
 
-  struct child_info *info;
-  info = palloc_get_page (PAL_ZERO);
-  if (info == NULL)
-    return; // Maybe we need to delete this thread if palloc fails for child_info struct?
 
-  memset (info, 0, sizeof *info);
+  if(is_not_init){
+    struct child_info *info;
+    info = palloc_get_page (PAL_ZERO);
+    if (info == NULL)
+      return; // Maybe we need to delete this thread if palloc fails for child_info struct?
 
-  info->tid = t->tid;
-  info->status = 0;
-  info->is_alive = true;
+    memset (info, 0, sizeof *info);
 
-  lock_init(&(info->exited_lock));
-  info->parent_free_lock = &(thread_current ()->free_lock);
+    info->tid = t->tid;
+    info->status = 0;
+    info->is_alive = true;
 
-  t->info = info;
+    lock_init(&(info->exited_lock));
+    info->parent_free_lock = &(thread_current ()->free_lock);
 
-  list_push_back (&(thread_current ()->child_infos), &(info->elem));
+    t->info = info;
+
+    list_push_back (&(thread_current ()->child_infos), &(info->elem));
+  }
+  is_not_init = true; 
 #endif
 
   old_level = intr_disable ();
