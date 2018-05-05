@@ -253,8 +253,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
-  printf("-----------------%s\n", file_name_);
-
   file = filesys_open (file_name_);
   if (file == NULL)
     {
@@ -487,12 +485,13 @@ setup_stack (void **esp, const char *args_str)
           if (null_term_needed)
           {
             null_term_needed = false;
-            args[num_args++] = (void *)(((int)(*esp)) % ((int)PHYS_BASE));
+
+            args[num_args++] = (void *)(((uintptr_t)(*esp)) % ((uintptr_t)PHYS_BASE));
             *((char*)(--(*esp))) = '\0';
           }
           *((char*)(--(*esp))) = args_str[str_len];
         }
-        args[num_args++] = (void *)(((int)(*esp)) % ((int)PHYS_BASE));
+        args[num_args++] = (void *)(((uintptr_t)(*esp)) % ((uintptr_t)PHYS_BASE));
 
         while ((PHYS_BASE - *esp) % 4 != 0)
           *((char*)(--(*esp))) = '\0';
@@ -512,7 +511,7 @@ setup_stack (void **esp, const char *args_str)
         *esp = *esp - sizeof(int);
         *((int*)(*esp)) = 0;
 
-        //hex_dump ((uintptr_t)(*esp), (void*)(*esp), 64, true);
+        // hex_dump ((uintptr_t)(*esp), (void*)(*esp), 64, true);
       }
       else
       {
