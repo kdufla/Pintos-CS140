@@ -122,7 +122,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 {
 	int sysc = GET_ARG_INT(0);
 
-	uint32_t rv = NULL;
+	uint32_t rv = 0;
 
 	switch(sysc)
 	{
@@ -169,7 +169,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 			practice(GET_ARG_INT(1));
 			break;
 		default:
-			rv = (uint32_t) exit(-1);
+			exit(-1);
 	}
 
 
@@ -177,7 +177,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 	// uint32_t* args = ((uint32_t*) f->esp);
 	// printf("System call number: %d\n", args[0]);
 	// if (args[0] == SYS_EXIT) {
-	// 	f->eax = args[1];
+		f->eax = rv;
 	// 	printf("%s: exit(%d)\n", &thread_current ()->name, args[1]);
 	// 	thread_exit();
 	// }
