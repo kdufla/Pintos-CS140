@@ -112,6 +112,7 @@ struct thread
     struct list child_infos;            /* List of exit infos about children */
     struct child_info *info;
     struct lock free_lock;
+    int exit_status;
 #endif
 
     /* Owned by thread.c. */
