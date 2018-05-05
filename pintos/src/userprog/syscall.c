@@ -3,6 +3,8 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/synch.h"
+#include "threads/palloc.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -42,7 +44,39 @@ static void halt(void)
 }
 
 static void exit(int status){
-	thread_current()->status = status;
+
+	struct thread *cur = thread_current ();
+
+	lock_acquire (&(cur->free_lock));
+
+  struct list_elem *e;
+  struct list *list = &(cur->child_infos);
+  struct child_info *info;
+  for (e = list_next(list_begin (list)); e != list_tail (list); e = list_next (e))  // tril tu end?! sakitxavi ai es aris;  
+  {
+    info = list_entry(list_prev(e), struct child_info, elem);
+    if (info->is_alive){
+      info->is_alive = false;
+    } else {
+      list_remove(&(info->elem));
+      palloc_free_page(info);
+    }
+  }
+
+	lock_release (&(cur->free_lock));
+  lock_acquire (cur->info->parent_free_lock);
+
+  if (cur->info->is_alive){
+    cur->info->is_alive = false;
+    cur->info->status = status;
+  } else {
+    list_remove(&(cur->info->elem));
+    palloc_free_page(cur->info);
+  }
+
+  lock_release (cur->info->parent_free_lock);
+
+  lock_release(&(cur->info->exited_lock));
 	thread_exit();
 }
 
@@ -53,7 +87,7 @@ static pid_t exec(const chat *file){
 
 static int wait(pid_t pid)
 {
-	return -1;
+	return process_wait (pid);
 }
 
 #ifdef P3
@@ -163,7 +197,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 			close(GET_ARG_INT(1));
 			break;
 		default:
-			rv = (uint32_t) exit(-1);
+			exit(-1);
 	}
 
 

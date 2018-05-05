@@ -107,11 +107,26 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+    struct list child_infos;            /* List of exit infos about children */
+    struct child_info *info;
+    struct lock free_lock;
 #endif
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
+
+#ifdef USERPROG
+struct child_info
+  {
+    tid_t tid;
+    int status;
+    bool is_alive;
+    struct lock exited_lock;            /* Lock used by parent process wait to find out if child has exited */
+    struct lock *parent_free_lock;      /* Lock used by parent and child for manipulating this struct */
+    struct list_elem elem;              /* List element. */
+  };
+#endif
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.

@@ -21,6 +21,7 @@
 
 static struct semaphore temporary;
 static thread_func start_process NO_RETURN;
+struct child_info *get_child_info (struct thread *parent, tid_t child_tid);
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
 /* Starts a new thread running a user program loaded from
@@ -79,6 +80,20 @@ start_process (void *file_name_)
   NOT_REACHED ();
 }
 
+struct child_info *
+get_child_info (struct thread *parent, tid_t child_tid)
+{
+  struct list_elem *e;
+  struct list *list = &(parent->child_infos);
+  for (e = list_begin (list); e != list_end (list); e = list_next (e))
+  {
+    struct child_info *info = list_entry(e, struct child_info, elem);
+    if (info->tid == child_tid)
+      return info;
+  }
+  return NULL;
+}
+
 /* Waits for thread TID to die and returns its exit status.  If
    it was terminated by the kernel (i.e. killed due to an
    exception), returns -1.  If TID is invalid or if it was not a
@@ -89,10 +104,22 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED)
+process_wait (tid_t child_tid)
 {
-  sema_down (&temporary);
-  return 0;
+  // sema_down (&temporary);
+  struct thread *parent = thread_current ();
+  struct child_info *info = get_child_info (parent, child_tid);
+  if (info == NULL)
+    return -1;
+
+  lock_acquire (&(info->exited_lock));
+
+  int status = info->status;
+
+  list_remove (&(info->elem));
+  palloc_free_page (info);
+
+  return status;
 }
 
 /* Free the current process's resources. */
@@ -118,7 +145,8 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-  sema_up (&temporary);
+
+  // sema_up (&temporary);
 }
 
 /* Sets up the CPU for running user code in the current
