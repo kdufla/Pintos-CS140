@@ -6,7 +6,9 @@
 #include "../devices/shutdown.h"
 #include "process.h"
 
+
 static void syscall_handler (struct intr_frame *);
+struct lock * filesys_lock;
 
 
 int practice (int i);
@@ -27,6 +29,7 @@ void close (int fd);
 void
 syscall_init (void)
 {
+	lock_init(filesys_lock);
 	intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
@@ -61,12 +64,20 @@ static int wait(pid_t pid)
 #ifdef P3
 bool create (const char *file, unsigned initial_size)
 {
-	return *(int*)file + (int)initial_size;
+	bool result;
+	lock_acquire(filesys_lock);
+	result = filesys_create (file, initial_size);
+	lock_release(filesys_lock);
+	return result;
 }
 
 bool remove (const char *file)
 {
-	return *(int*)file;
+	bool result;
+	lock_acquire(filesys_lock);
+	result = filesys_remove(file);
+	lock_release(filesys_lock);
+	return result;
 }
 
 

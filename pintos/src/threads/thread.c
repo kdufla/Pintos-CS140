@@ -617,6 +617,13 @@ init_thread (struct thread *t, const char *name, int priority, fixed_point_t rec
   ASSERT (name != NULL);
 
   memset (t, 0, sizeof *t);
+
+#ifdef USERPROG
+  list_init(&t->file_descriptors);
+  //TODO: Create stdin 
+  //TODO: Create stdout
+#endif
+
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->nice = nice;
