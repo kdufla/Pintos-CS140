@@ -151,7 +151,7 @@ process_exit (void)
   struct list_elem *e;
   struct list *list = &(cur->child_infos);
   struct child_info *info;
-  for (e = list_next(list_begin (list)); e != list_tail (list); e = list_next (e))  // tril tu end?! sakitxavi ai es aris;  
+  for (e = list_next(list_begin (list)); e != list_end (list); e = list_next (e))  // tril tu end?! sakitxavi ai es aris;  
   {
     info = list_entry(list_prev(e), struct child_info, elem);
     if (info->is_alive){
@@ -160,6 +160,14 @@ process_exit (void)
       list_remove(&(info->elem));
       palloc_free_page(info);
     }
+  }
+
+  info = list_entry(list_prev(e), struct child_info, elem);
+  if (info->is_alive){
+    info->is_alive = false;
+  } else {
+    list_remove(&(info->elem));
+    palloc_free_page(info);
   }
 
   lock_release (&(cur->free_lock));
