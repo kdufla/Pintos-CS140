@@ -133,6 +133,7 @@ int filesize(int fd)
 
 	for (e = list_begin(&current_fd_list); e != list_end(&current_fd_list); e = list_next(e))
 	{
+		if(e->next == NULL) break;
 		struct file_descriptor *current_fd = list_entry(e, struct file_descriptor, descriptors);
 		if (current_fd->id == fd)
 		{
@@ -169,6 +170,7 @@ int read(int fd, void *buffer, unsigned size)
 
 	for (e = list_begin(&current_fd_list); e != list_end(&current_fd_list); e = list_next(e))
 	{
+		if(e->next == NULL) break;
 		struct file_descriptor *current_fd = list_entry(e, struct file_descriptor, descriptors);
 		if (current_fd->id == fd)
 		{
@@ -202,6 +204,7 @@ int write(int fd, const void *buffer, unsigned size)
 
 	for (e = list_begin(&current_fd_list); e != list_end(&current_fd_list); e = list_next(e))
 	{
+		if(e->next == NULL) break;
 		struct file_descriptor *current_fd = list_entry(e, struct file_descriptor, descriptors);
 		if (current_fd->id == fd)
 		{
@@ -222,6 +225,7 @@ void seek(int fd, unsigned position)
 
 	for (e = list_begin(&current_fd_list); e != list_end(&current_fd_list); e = list_next(e))
 	{
+		if(e->next == NULL) break;
 		struct file_descriptor *current_fd = list_entry(e, struct file_descriptor, descriptors);
 		if (current_fd->id == fd)
 		{
@@ -242,6 +246,7 @@ unsigned tell(int fd)
 
 	for (e = list_begin(&current_fd_list); e != list_end(&current_fd_list); e = list_next(e))
 	{
+		if(e->next == NULL) break;
 		struct file_descriptor *current_fd = list_entry(e, struct file_descriptor, descriptors);
 		if (current_fd->id == fd)
 		{
@@ -262,6 +267,7 @@ void close(int fd)
 
 	for (e = list_begin(&current_fd_list); e != list_end(&current_fd_list); e = list_next(e))
 	{
+		if(e->next == NULL) break;
 		struct file_descriptor *current_fd = list_entry(e, struct file_descriptor, descriptors);
 		if (current_fd->id == fd)
 		{
