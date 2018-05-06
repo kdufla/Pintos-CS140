@@ -113,6 +113,7 @@ int open(const char *file)
 	}
 	struct file* opened = filesys_open(file);
 	if(opened != NULL){
+		fd->file = opened;
 		list_push_back(&(curr->file_descriptors), &(fd->descriptors));
 		lock_release(&filesys_lock);
 		return fd->id;
@@ -121,10 +122,6 @@ int open(const char *file)
 		lock_release(&filesys_lock);
 		return -1;
 	}
-	// fd->file = filesys_open(file);
-	// list_push_back(&(curr->file_descriptors), &(fd->descriptors));
-	// lock_release(&filesys_lock);
-	// return fd->id;
 }
 
 int filesize(int fd)
