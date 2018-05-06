@@ -284,7 +284,7 @@ static bool is_valid_address(uint32_t *p)
 {
 	if (p == NULL || !is_user_vaddr((uint32_t *)p) || pagedir_get_page(thread_current()->pagedir, (uint32_t *)p) == NULL)
 	{
-		return false;
+		return false;	
 	}
 
 	return true;
@@ -321,7 +321,7 @@ static void *get_arg_pointer(uint32_t *p, int len)
 			{
 				exit(-1);
 			}
-		} while (*(char *)++p - 1);
+		} while (*(char *)p++);
 	}
 	else
 	{
