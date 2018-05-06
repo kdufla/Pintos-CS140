@@ -52,7 +52,7 @@ static void halt(void)
 static void exit(int status)
 {
 	thread_current()->exit_status = status;
-	printf("%s: exit(%d)\n", thread_current ()->name, status);
+	printf("%s: exit(%d)\n", thread_current()->name, status);
 	thread_exit();
 }
 
@@ -72,9 +72,11 @@ bool create(const char *file, unsigned initial_size)
 	lock_acquire(&filesys_lock);
 	result = filesys_create(file, initial_size);
 	lock_release(&filesys_lock);
-	if(true){
+	if (true)
+	{
 		int bla = result;
-		if(bla){
+		if (bla)
+		{
 			bla++;
 		}
 	}
@@ -310,7 +312,7 @@ static void *get_arg_pointer(uint32_t *p, int len)
 			{
 				exit(-1);
 			}
-		} while (*(char*)++p);
+		} while (*(char *)++p - 1);
 	}
 	else
 	{
@@ -392,7 +394,7 @@ syscall_handler(struct intr_frame *f UNUSED)
 	{
 		f->eax = rv;
 	}
-		// printf("%s: exit(%d)\n", &thread_current ()->name, args[1]);
+	// printf("%s: exit(%d)\n", &thread_current ()->name, args[1]);
 	// 	thread_exit();
 	// }
 }
