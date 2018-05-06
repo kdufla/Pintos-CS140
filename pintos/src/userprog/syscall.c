@@ -37,16 +37,6 @@ void syscall_init(void)
 	intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
-static bool is_valid_address(void *p)
-{
-	if (p == NULL || !is_user_vaddr((uint32_t *)p) || pagedir_get_page(thread_current()->pagedir, (uint32_t *)p) == NULL)
-	{
-		return false;
-	}
-
-	return true;
-}
-
 /* syscalls */
 
 int practice(int i)
@@ -82,6 +72,12 @@ bool create(const char *file, unsigned initial_size)
 	lock_acquire(&filesys_lock);
 	result = filesys_create(file, initial_size);
 	lock_release(&filesys_lock);
+	if(true){
+		int bla = result;
+		if(bla){
+			bla++;
+		}
+	}
 	return result;
 }
 
@@ -273,10 +269,20 @@ void close(int fd)
 	lock_release(&filesys_lock);
 }
 
+static bool is_valid_address(uint32_t *p)
+{
+	if (p == NULL || pagedir_get_page(thread_current()->pagedir, (uint32_t *)p) == NULL)
+	{
+		return false;
+	}
+
+	return true;
+}
+
 /* given pointer and check if every byte of this pointer is valid */
 static uint32_t *get_arg_int(uint32_t *p)
 {
-	if (is_valid_address(p) && is_valid_address((char *)p + 3))
+	if (is_valid_address(p) && is_valid_address((uint32_t *)((char *)p + 3)))
 	{
 		return p;
 	}
@@ -292,7 +298,7 @@ static uint32_t *get_arg_int(uint32_t *p)
  * if len is NO_LEN it's guaranteed that memory ends with NULL/'\0' (false)
  * check validity of every byte's address
  * */
-static void *get_arg_pointer(char *p, int len)
+static void *get_arg_pointer(uint32_t *p, int len)
 {
 	void *rv = (void *)p;
 
@@ -304,7 +310,7 @@ static void *get_arg_pointer(char *p, int len)
 			{
 				exit(-1);
 			}
-		} while (++p - 1);
+		} while (*(char*)++p);
 	}
 	else
 	{
@@ -320,7 +326,8 @@ static void *get_arg_pointer(char *p, int len)
 }
 
 #define GET_ARG_INT(i) (*get_arg_int(((uint32_t *)f->esp) + i))
-#define GET_ARG_POINTER(i, len) (get_arg_pointer((char *)GET_ARG_INT(i), len))
+
+#define GET_ARG_POINTER(i, len) (get_arg_pointer((uint32_t *)GET_ARG_INT(i), len))
 
 static void
 syscall_handler(struct intr_frame *f UNUSED)
@@ -344,7 +351,7 @@ syscall_handler(struct intr_frame *f UNUSED)
 		rv = (uint32_t)wait(GET_ARG_INT(1));
 		break;
 	case SYS_CREATE:
-		rv = (uint32_t)create(GET_ARG_POINTER(1, NO_LEN), GET_ARG_INT(2));
+		rv = (uint32_t)create(GET_ARG_POINTER(1, NO_LEN), (unsigned)GET_ARG_INT(2));
 		break;
 	case SYS_REMOVE:
 		rv = (uint32_t)remove(GET_ARG_POINTER(1, NO_LEN));
