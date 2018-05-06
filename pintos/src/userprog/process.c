@@ -78,6 +78,8 @@ start_process (void *fws)
   struct intr_frame if_;
   bool success;
 
+  lock_acquire (&(thread_current ()->info->exited_lock));
+
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
@@ -89,6 +91,7 @@ start_process (void *fws)
   palloc_free_page (file_name);
   if (!success){
     *status = false;
+    lock_release (&(thread_current ()->info->exited_lock));
     sema_up(sema);
     thread_exit ();
   }
