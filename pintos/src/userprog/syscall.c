@@ -374,7 +374,7 @@ syscall_handler(struct intr_frame *f UNUSED)
 		rv = (uint32_t)filesize(GET_ARG_INT(1));
 		break;
 	case SYS_READ:
-		rv = (uint32_t)read(GET_ARG_INT(1), GET_ARG_POINTER(2, GET_ARG_INT(3)), GET_ARG_INT(3));
+		rv = (uint32_t)read(GET_ARG_INT(1), GET_ARG_POINTER(2,NO_LEN), GET_ARG_INT(3));
 		break;
 	case SYS_WRITE:
 		rv = (uint32_t)write(GET_ARG_INT(1), GET_ARG_POINTER(2, GET_ARG_INT(3)), GET_ARG_INT(3));
