@@ -111,11 +111,20 @@ int open(const char *file)
 	{
 		fd->id = 2;
 	}
-
-	fd->file = filesys_open(file);
-	list_push_back(&(curr->file_descriptors), &(fd->descriptors));
-	lock_release(&filesys_lock);
-	return fd->id;
+	struct file* opened = filesys_open(file);
+	if(opened != NULL){
+		list_push_back(&(curr->file_descriptors), &(fd->descriptors));
+		lock_release(&filesys_lock);
+		return fd->id;
+	} else {
+		palloc_free_page(fd);
+		lock_release(&filesys_lock);
+		return -1;
+	}
+	// fd->file = filesys_open(file);
+	// list_push_back(&(curr->file_descriptors), &(fd->descriptors));
+	// lock_release(&filesys_lock);
+	// return fd->id;
 }
 
 int filesize(int fd)
@@ -213,7 +222,6 @@ void seek(int fd, unsigned position)
 	lock_acquire(&filesys_lock);
 	struct list current_fd_list = thread_current()->file_descriptors;
 	struct list_elem *e;
-	e = list_begin(&current_fd_list);
 
 	for (e = list_begin(&current_fd_list); e != list_end(&current_fd_list); e = list_next(e))
 	{
@@ -233,7 +241,6 @@ unsigned tell(int fd)
 	lock_acquire(&filesys_lock);
 	struct list current_fd_list = thread_current()->file_descriptors;
 	struct list_elem *e;
-	e = list_begin(&current_fd_list);
 	int result = 0;
 
 	for (e = list_begin(&current_fd_list); e != list_end(&current_fd_list); e = list_next(e))
@@ -255,7 +262,6 @@ void close(int fd)
 	lock_acquire(&filesys_lock);
 	struct list current_fd_list = thread_current()->file_descriptors;
 	struct list_elem *e;
-	e = list_begin(&current_fd_list);
 
 	for (e = list_begin(&current_fd_list); e != list_end(&current_fd_list); e = list_next(e))
 	{
