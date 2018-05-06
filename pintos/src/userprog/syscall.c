@@ -284,7 +284,7 @@ static bool is_valid_address(uint32_t *p)
 {
 	if (p == NULL || !is_user_vaddr((uint32_t *)p) || pagedir_get_page(thread_current()->pagedir, (uint32_t *)p) == NULL)
 	{
-		return false;	
+		return false;
 	}
 
 	return true;
@@ -321,16 +321,17 @@ static void *get_arg_pointer(uint32_t *p, int len)
 			{
 				exit(-1);
 			}
-		} while (*(char *)p++);
+		} while (*(char *)++p - 1);
 	}
 	else
 	{
 		while (len-- > 0)
 		{
-			if (!is_valid_address(p++))
+			if (!is_valid_address(p))
 			{
 				exit(-1);
 			}
+			p = (uint32_t*)((char*)p+1);
 		}
 	}
 	return rv;
@@ -374,7 +375,7 @@ syscall_handler(struct intr_frame *f UNUSED)
 		rv = (uint32_t)filesize(GET_ARG_INT(1));
 		break;
 	case SYS_READ:
-		rv = (uint32_t)read(GET_ARG_INT(1), GET_ARG_POINTER(2,NO_LEN), GET_ARG_INT(3));
+		rv = (uint32_t)read(GET_ARG_INT(1), GET_ARG_POINTER(2, GET_ARG_INT(3)), GET_ARG_INT(3));
 		break;
 	case SYS_WRITE:
 		rv = (uint32_t)write(GET_ARG_INT(1), GET_ARG_POINTER(2, GET_ARG_INT(3)), GET_ARG_INT(3));
