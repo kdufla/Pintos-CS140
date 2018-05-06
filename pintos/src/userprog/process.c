@@ -23,6 +23,8 @@
 static thread_func start_process NO_RETURN;
 struct child_info *get_child_info (struct thread *parent, tid_t child_tid);
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
+static uint16_t get_first_token_len(const char *str);
+static char *get_first_token(char *dest, const char *src, uint16_t len);
 
 struct file_with_sema{
   char *file;
@@ -57,8 +59,12 @@ process_execute (const char *file_name)
   fws.status = &status;
   
 
+  uint16_t file_name_len = get_first_token_len(file_name);
+  char *str_buf[file_name_len + 1];
+  char *file_name_ = get_first_token((char *)str_buf, file_name, file_name_len);
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, &fws);
+  tid = thread_create (file_name_, PRI_DEFAULT, start_process, &fws);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
 
@@ -294,8 +300,6 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static uint16_t get_first_token_len(const char *str);
-static char *get_first_token(char *dest, const char *src, uint16_t len);
 static bool setup_stack (void **esp, const char *args_str);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
