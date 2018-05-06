@@ -62,6 +62,7 @@ static void halt(void)
 static void exit(int status)
 {
 	thread_current()->exit_status = status;
+	printf("%s: exit(%d)\n", thread_current ()->name, status);
 	thread_exit();
 }
 
@@ -384,7 +385,7 @@ syscall_handler(struct intr_frame *f UNUSED)
 	{
 		f->eax = rv;
 	}
-	// 	printf("%s: exit(%d)\n", &thread_current ()->name, args[1]);
+		// printf("%s: exit(%d)\n", &thread_current ()->name, args[1]);
 	// 	thread_exit();
 	// }
 }
