@@ -635,9 +635,11 @@ init_thread (struct thread *t, const char *name, int priority, fixed_point_t rec
 
 #ifdef USERPROG
   /* For userprogs */
-  list_init(&t->file_descriptors);
-  //TODO: Create stdin 
-  //TODO: Create stdout
+  // list_init(&t->file_descriptors);
+  int i;
+  for(i = 0; i < 64; i++){
+    t->descls[i] = NULL;
+  }
   list_init(&t->child_infos);
   lock_init(&(t->free_lock));
 

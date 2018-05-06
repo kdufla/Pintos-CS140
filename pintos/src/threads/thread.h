@@ -108,7 +108,8 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
-    struct list file_descriptors;    
+    // struct list file_descriptors;    
+    struct file *descls[64];
     struct list child_infos;            /* List of exit infos about children */
     struct child_info *info;
     struct lock free_lock;
@@ -124,12 +125,12 @@ struct thread
 
 #ifdef USERPROG
 
-struct file_descriptor
-  {
-    int id;
-    struct list_elem descriptors;
-    struct file* file;
-  };
+// struct file_descriptor
+//   {
+//     int id;
+//     struct list_elem descriptors;
+//     struct file* file;
+//   };
 
 struct child_info
   {
