@@ -109,7 +109,7 @@ int open(const char *file)
 
 int filesize(int fd)
 {
-	if(fd == 0 || fd == 1){
+	if(fd == 0 || fd == 1 || fd > 65){
 		return 0;
 	}
 	lock_acquire(&filesys_lock);
@@ -182,7 +182,7 @@ int write(int fd, const void *buffer, unsigned size)
 
 void seek(int fd, unsigned position)
 {
-	if(fd == 0 || fd == 1){
+	if(fd == 0 || fd == 1 || fd > 65){
 		return;
 	}
 	struct thread *cur = thread_current();	
@@ -198,7 +198,7 @@ void seek(int fd, unsigned position)
 
 unsigned tell(int fd)
 {
-	if(fd == 0 || fd == 1){
+	if(fd == 0 || fd == 1 || fd > 65){
 		return 0;
 	}
 	struct thread *cur = thread_current();	
@@ -216,7 +216,7 @@ unsigned tell(int fd)
 
 void close(int fd)
 {
-	if(fd == 0 || fd == 1){
+	if(fd == 0 || fd == 1 || fd > 65){
 		return;
 	}
 	struct thread *cur = thread_current();	
@@ -272,7 +272,7 @@ static void *get_arg_pointer(uint32_t *p, int len)
 			{
 				exit(-1);
 			}
-		} while (*(char *)++p - 1);
+		} while (*(char *)++p);
 	}
 	else
 	{
