@@ -263,7 +263,7 @@ void close(int fd)
 	struct list current_fd_list = thread_current()->file_descriptors;
 	struct list_elem *e;
 
-	for (e = list_begin(&current_fd_list); e != list_end(&current_fd_list); e = list_next(e))
+	for (e = list_begin(&current_fd_list); e != list_end(&current_fd_list) && e !=NULL; e = list_next(e))
 	{
 		struct file_descriptor *current_fd = list_entry(e, struct file_descriptor, descriptors);
 		if (current_fd->id == fd)
