@@ -19,10 +19,16 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
-static struct semaphore temporary;
+// static struct semaphore temporary;
 static thread_func start_process NO_RETURN;
 struct child_info *get_child_info (struct thread *parent, tid_t child_tid);
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
+
+struct file_with_sema{
+  char *file;
+  struct semaphore *sema;
+  bool *status;
+};
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -33,8 +39,12 @@ process_execute (const char *file_name)
 {
   char *fn_copy;
   tid_t tid;
+  struct semaphore sema;
+  struct file_with_sema fws;
+  bool status = true;
 
-  sema_init (&temporary, 0);
+  sema_init (&sema, 0);
+
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
@@ -42,19 +52,29 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  fws.file = fn_copy;
+  fws.sema = &sema;
+  fws.status = &status;
+  
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (file_name, PRI_DEFAULT, start_process, &fws);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
-  return tid;
+
+  sema_down(&sema);
+
+  return (status ? tid : -1);
 }
 
 /* A thread function that loads a user process and starts it
    running. */
 static void
-start_process (void *file_name_)
+start_process (void *fws)
 {
-  char *file_name = file_name_;
+  char *file_name = ((struct file_with_sema *)fws)->file;
+  struct semaphore *sema = ((struct file_with_sema *)fws)->sema;
+  bool *status = ((struct file_with_sema *)fws)->status;
   struct intr_frame if_;
   bool success;
 
@@ -67,8 +87,14 @@ start_process (void *file_name_)
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success)
+  if (!success){
+    *status = false;
+    sema_up(sema);
     thread_exit ();
+  }
+
+  *status = true;
+  sema_up(sema);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
