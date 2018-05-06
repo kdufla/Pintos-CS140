@@ -273,7 +273,7 @@ void close(int fd)
 
 static bool is_valid_address(uint32_t *p)
 {
-	if (p == NULL || pagedir_get_page(thread_current()->pagedir, (uint32_t *)p) == NULL)
+	if (p == NULL || !is_user_vaddr((uint32_t *)p) || pagedir_get_page(thread_current()->pagedir, (uint32_t *)p) == NULL)
 	{
 		return false;
 	}
