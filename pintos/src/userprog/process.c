@@ -108,16 +108,22 @@ process_wait (tid_t child_tid)
 {
   // sema_down (&temporary);
   struct thread *parent = thread_current ();
+  lock_acquire (&(parent->free_lock));
   struct child_info *info = get_child_info (parent, child_tid);
+  lock_release (&(parent->free_lock));
   if (info == NULL)
     return -1;
 
   lock_acquire (&(info->exited_lock));
-
+  
+  lock_acquire (&(parent->free_lock));
+  
   int status = info->status;
 
   list_remove (&(info->elem));
   palloc_free_page (info);
+
+  lock_release (&(parent->free_lock));
 
   return status;
 }
