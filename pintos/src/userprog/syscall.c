@@ -109,6 +109,9 @@ int open(const char *file)
 
 int filesize(int fd)
 {
+	if(fd == 0 || fd == 1){
+		return 0;
+	}
 	lock_acquire(&filesys_lock);
 
 	struct thread *cur = thread_current();	
@@ -179,6 +182,9 @@ int write(int fd, const void *buffer, unsigned size)
 
 void seek(int fd, unsigned position)
 {
+	if(fd == 0 || fd == 1){
+		return;
+	}
 	struct thread *cur = thread_current();	
 
 	lock_acquire(&filesys_lock);
@@ -192,6 +198,9 @@ void seek(int fd, unsigned position)
 
 unsigned tell(int fd)
 {
+	if(fd == 0 || fd == 1){
+		return 0;
+	}
 	struct thread *cur = thread_current();	
 	int result = 0;
 
@@ -207,6 +216,9 @@ unsigned tell(int fd)
 
 void close(int fd)
 {
+	if(fd == 0 || fd == 1){
+		return;
+	}
 	struct thread *cur = thread_current();	
 
 	lock_acquire(&filesys_lock);

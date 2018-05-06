@@ -30,7 +30,7 @@
    without sacrificing this simplicity.  But using two separate
    elements allows us to do a little bit of checking on some
    operations, which can be valuable.) */
-
+struct list_elem *bb(struct list_elem *e);
 static bool is_sorted (struct list_elem *a, struct list_elem *b,
                        list_less_func *less, void *aux) UNUSED;
 
@@ -398,6 +398,10 @@ inplace_merge (struct list_elem *a0, struct list_elem *a1b0,
       }
 }
 
+struct list_elem *bb(struct list_elem *e){
+  return e;
+}
+
 /* Sorts LIST according to LESS given auxiliary data AUX, using a
    natural iterative merge sort that runs in O(n lg n) time and
    O(1) space in the number of elements in LIST. */
@@ -436,7 +440,11 @@ list_sort (struct list *list, list_less_func *less, void *aux)
     }
   while (output_run_cnt > 1);
 
-  ASSERT (is_sorted (list_begin (list), list_end (list), less, aux));
+  if(!is_sorted (list_begin (list), list_end (list), less, aux)){
+    bb(list_begin (list));
+    ASSERT (is_sorted (list_begin (list), list_end (list), less, aux));
+
+  }
 }
 
 /* Inserts ELEM in the proper position in LIST, which must be
