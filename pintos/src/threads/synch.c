@@ -126,7 +126,7 @@ sema_up (struct semaphore *sema)
   int wasBlocked = sema->value++;
   intr_set_level (old_level);
   
-  if (has_waiters && !wasBlocked && thread_current()->priority < max_priority)
+  if (has_waiters && !wasBlocked && thread_current()->priority < max_priority && !intr_context())
     thread_yield();
 }
 
