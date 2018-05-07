@@ -206,6 +206,9 @@ int write(int fd, const void *buffer, unsigned size)
 	{
 		if(e->next == NULL) break;
 		struct file_descriptor *current_fd = list_entry(e, struct file_descriptor, descriptors);
+		if(!is_writable(current_fd->file)){
+			return -1;
+		}
 		if (current_fd->id == fd)
 		{
 			result = file_write(current_fd->file, buffer, size);

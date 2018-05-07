@@ -113,6 +113,10 @@ file_write_at (struct file *file, const void *buffer, off_t size,
   return inode_write_at (file->inode, buffer, size, file_ofs);
 }
 
+int is_writable(struct file *file){
+  return !(file->deny_write);
+}
+
 /* Prevents write operations on FILE's underlying inode
    until file_allow_write() is called or FILE is closed. */
 void
