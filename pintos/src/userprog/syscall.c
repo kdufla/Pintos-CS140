@@ -340,7 +340,7 @@ syscall_handler(struct intr_frame *f UNUSED)
 		close(GET_ARG_INT(1));
 		break;
 	case SYS_PRACTICE:
-		practice(GET_ARG_INT(1));
+		rv = practice(GET_ARG_INT(1));
 		break;
 	default:
 		exit(-1);
