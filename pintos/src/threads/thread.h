@@ -27,6 +27,8 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+#define FD_MAX 128
+
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -109,7 +111,7 @@ struct thread
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
     // struct list file_descriptors;    
-    struct file *descls[64];
+    struct file *descls[FD_MAX];
     struct list child_infos;            /* List of exit infos about children */
     struct child_info *info;
     struct lock free_lock;
@@ -137,7 +139,8 @@ struct child_info
     tid_t tid;
     int status;
     bool is_alive;
-    struct lock exited_lock;            /* Lock used by parent process wait to find out if child has exited */
+    struct semaphore sema_raised_by_child;
+    // struct lock exited_lock;            /* Lock used by parent process wait to find out if child has exited */
     struct lock *parent_free_lock;      /* Lock used by parent and child for manipulating this struct */
     struct list_elem elem;              /* List element. */
   };

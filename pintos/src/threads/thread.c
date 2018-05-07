@@ -637,7 +637,7 @@ init_thread (struct thread *t, const char *name, int priority, fixed_point_t rec
   /* For userprogs */
   // list_init(&t->file_descriptors);
   int i;
-  for(i = 0; i < 64; i++){
+  for(i = 0; i < FD_MAX; i++){
     t->descls[i] = NULL;
   }
   list_init(&t->child_infos);
@@ -656,7 +656,8 @@ init_thread (struct thread *t, const char *name, int priority, fixed_point_t rec
     info->status = 0;
     info->is_alive = true;
 
-    lock_init(&(info->exited_lock));
+    sema_init(&(info->sema_raised_by_child), 0);
+    // lock_init(&(info->exited_lock));
     info->parent_free_lock = &(thread_current ()->free_lock);
 
     t->info = info;

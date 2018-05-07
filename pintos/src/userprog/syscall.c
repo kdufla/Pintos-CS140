@@ -109,7 +109,7 @@ int open(const char *file)
 
 int filesize(int fd)
 {
-	if(fd == 0 || fd == 1 || fd > 65 || fd < 0){
+	if(fd == 0 || fd == 1 || fd > FD_MAX + 1 || fd < 0){
 		return 0;
 	}
 	lock_acquire(&filesys_lock);
@@ -136,7 +136,7 @@ int read(int fd, void *buffer, unsigned size)
 		return size;
 	}
 
-	if (fd == 1 || fd > 65 || fd < 0)
+	if (fd == 1 || fd > FD_MAX + 1 || fd < 0)
 	{
 		return 0;
 	}
@@ -156,7 +156,7 @@ int read(int fd, void *buffer, unsigned size)
 
 int write(int fd, const void *buffer, unsigned size)
 {
-	if (fd == 0 || fd > 65 || fd < 0)
+	if (fd == 0 || fd > FD_MAX + 1 || fd < 0)
 	{
 		return 0;
 	}
@@ -182,7 +182,7 @@ int write(int fd, const void *buffer, unsigned size)
 
 void seek(int fd, unsigned position)
 {
-	if(fd == 0 || fd == 1 || fd > 65 || fd < 0){
+	if(fd == 0 || fd == 1 || fd > FD_MAX + 1 || fd < 0){
 		return;
 	}
 	struct thread *cur = thread_current();	
@@ -198,7 +198,7 @@ void seek(int fd, unsigned position)
 
 unsigned tell(int fd)
 {
-	if(fd == 0 || fd == 1 || fd > 65 || fd < 0){
+	if(fd == 0 || fd == 1 || fd > FD_MAX + 1 || fd < 0){
 		return 0;
 	}
 	struct thread *cur = thread_current();	
@@ -216,7 +216,7 @@ unsigned tell(int fd)
 
 void close(int fd)
 {
-	if(fd == 0 || fd == 1 || fd > 65 || fd < 0){
+	if(fd == 0 || fd == 1 || fd > FD_MAX + 1 || fd < 0){
 		return;
 	}
 	struct thread *cur = thread_current();	
@@ -231,7 +231,7 @@ void close(int fd)
 	lock_release(&filesys_lock);
 }
 
-static bool is_valid_address(uint32_t *p)
+static bool is_valid_address(void *p)
 {
 	if (p == NULL || !is_user_vaddr((uint32_t *)p) || pagedir_get_page(thread_current()->pagedir, (uint32_t *)p) == NULL)
 	{
@@ -260,7 +260,7 @@ static uint32_t *get_arg_int(uint32_t *p)
  * if len is NO_LEN it's guaranteed that memory ends with NULL/'\0' (false)
  * check validity of every byte's address
  * */
-static void *get_arg_pointer(uint32_t *p, int len)
+static void *get_arg_pointer(void *p, int len)
 {
 	void *rv = (void *)p;
 
@@ -272,13 +272,13 @@ static void *get_arg_pointer(uint32_t *p, int len)
 			{
 				exit(-1);
 			}
-		} while (*(char *)++p);
+		} while (*(char *)p++);
 	}
 	else
 	{
 		while (len-- > 0)
 		{
-			if (!is_valid_address(p++))
+			if (!is_valid_address((char *)p++))
 			{
 				exit(-1);
 			}

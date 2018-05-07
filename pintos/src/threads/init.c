@@ -289,6 +289,7 @@ run_task (char **argv)
 #else
   run_test (task);
 #endif
+  timer_sleep(80);
   printf ("Execution of '%s' complete.\n", task);
 }
 
