@@ -84,8 +84,6 @@ start_process (void *fws)
   struct intr_frame if_;
   bool success;
 
-  // lock_acquire (&(thread_current ()->info->exited_lock));
-
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
@@ -97,7 +95,6 @@ start_process (void *fws)
   palloc_free_page (file_name);
   if (!success){
     *status = false;
-    // lock_release (&(thread_current ()->info->exited_lock));
     sema_up(sema);
     thread_exit ();
   }
@@ -150,8 +147,6 @@ process_wait (tid_t child_tid)
     return -1;
 
   sema_down(&(info->sema_raised_by_child));
-  // lock_acquire (&(info->exited_lock));
-  ASSERT(1==3);
   
   lock_acquire (&(parent->free_lock));
   
@@ -218,10 +213,7 @@ process_exit (void)
 
   lock_release (cur->info->parent_free_lock);
 
-  // lock_release(&(cur->info->exited_lock));
-  ASSERT(1==2);
   sema_up(&(cur->info->sema_raised_by_child));
-  // sema_up (&temporary);
 }
 
 /* Sets up the CPU for running user code in the current

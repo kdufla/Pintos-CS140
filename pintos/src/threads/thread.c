@@ -226,6 +226,7 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority, thread_current ()->recent_cpu, thread_current ()->nice);
   tid = t->tid = allocate_tid ();
+  t->info->tid = tid;
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -635,7 +636,6 @@ init_thread (struct thread *t, const char *name, int priority, fixed_point_t rec
 
 #ifdef USERPROG
   /* For userprogs */
-  // list_init(&t->file_descriptors);
   int i;
   for(i = 0; i < FD_MAX; i++){
     t->descls[i] = NULL;
@@ -652,12 +652,10 @@ init_thread (struct thread *t, const char *name, int priority, fixed_point_t rec
 
     memset (info, 0, sizeof *info);
 
-    info->tid = t->tid;
     info->status = 0;
     info->is_alive = true;
 
     sema_init(&(info->sema_raised_by_child), 0);
-    // lock_init(&(info->exited_lock));
     info->parent_free_lock = &(thread_current ()->free_lock);
 
     t->info = info;
