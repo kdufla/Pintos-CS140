@@ -214,6 +214,7 @@ process_exit (void)
   lock_release (cur->info->parent_free_lock);
 
   sema_up(&(cur->info->sema_raised_by_child));
+  file_close(cur->executable);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -352,6 +353,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
       printf ("load: %s: open failed\n", file_name);
       goto done;
     }
+  // printf("deny file: %s\n", file_name);
+  file_deny_write(file);
+  // printf("deny done: %s\n", file_name);
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -436,7 +440,13 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  // file_close (file);
+  if(!success){
+    file_close(file);
+  }else{
+    t->executable = file;
+  }
+
   return success;
 }
 

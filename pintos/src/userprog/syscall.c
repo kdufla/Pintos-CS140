@@ -10,6 +10,7 @@
 #include "pagedir.h"
 #include "../threads/vaddr.h"
 #include "../filesys/filesys.h"
+#include "../filesys/file.h"
 #include "../lib/kernel/stdio.h"
 #include "../devices/input.h"
 
@@ -18,7 +19,7 @@ struct lock filesys_lock;
 
 int practice(int i);
 static void halt(void);
-static void exit(int status);
+void exit(int status);
 static pid_t exec(const char *file);
 static int wait(pid_t pid);
 bool create(const char *file, unsigned initial_size);
@@ -49,7 +50,7 @@ static void halt(void)
 	shutdown_power_off();
 }
 
-static void exit(int status)
+void exit(int status)
 {
 	thread_current()->exit_status = status;
 	printf("%s: exit(%d)\n", thread_current()->name, status);
@@ -173,7 +174,7 @@ int write(int fd, const void *buffer, unsigned size)
 	lock_acquire(&filesys_lock);
 
 	if(cur->descls[fd - 2] != NULL){
-		result = file_write(thread_current()->descls[fd - 2], buffer, size);
+		result = file_write(cur->descls[fd - 2], buffer, size);
 	}
 
 	lock_release(&filesys_lock);

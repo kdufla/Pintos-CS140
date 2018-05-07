@@ -115,6 +115,7 @@ struct thread
     struct child_info *info;
     struct lock free_lock;
     int exit_status;
+    struct file *executable;
 #endif
 
     /* Owned by thread.c. */
