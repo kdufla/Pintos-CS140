@@ -40,16 +40,19 @@ void syscall_init(void)
 
 /* syscalls */
 
+/* practice syscall - ++i */
 int practice(int i)
 {
 	return i + 1;
 }
 
+/* Terminate Pintos */
 static void halt(void)
 {
 	shutdown_power_off();
 }
 
+/* Terminate user program and passes exit status to kernel */
 void exit(int status)
 {
 	thread_current()->exit_status = status;
@@ -57,6 +60,7 @@ void exit(int status)
 	thread_exit();
 }
 
+/* execute executable file by name */
 static pid_t exec(const char *file)
 {
 	return process_execute(file);
@@ -67,6 +71,8 @@ static int wait(pid_t pid)
 	return process_wait(pid);
 }
 
+/* 	create file with initial size - initial_size and name - file
+	return success true or false */
 bool create(const char *file, unsigned initial_size)
 {
 	bool result;
@@ -76,6 +82,8 @@ bool create(const char *file, unsigned initial_size)
 	return result;
 }
 
+/* 	remove file by name
+	return success true or false */
 bool remove(const char *file)
 {
 	bool result;
@@ -85,6 +93,8 @@ bool remove(const char *file)
 	return result;
 }
 
+/* 	open file
+	return file descriptor or -1 if error occured */
 int open(const char *file)
 {
 	lock_acquire(&filesys_lock);
@@ -92,14 +102,17 @@ int open(const char *file)
 	struct thread *cur = thread_current();
 	int result = -1;
 	struct file *file_p = filesys_open(file);
-	
-	if(file_p != NULL){
+
+	if (file_p != NULL)
+	{
 		int i;
-		for(i = 0; i < 64; i++){
-			if(cur->descls[i] == NULL){
+		for (i = 0; i < FD_MAX; i++)
+		{
+			if (cur->descls[i] == NULL)
+			{
 				cur->descls[i] = file_p;
 				result = i + 2;
-				break;	
+				break;
 			}
 		}
 	}
@@ -108,17 +121,22 @@ int open(const char *file)
 	return result;
 }
 
+/*	get size of file
+	return -1 if errorr occured */
 int filesize(int fd)
 {
-	if(fd == 0 || fd == 1 || fd > FD_MAX + 1 || fd < 0){
-		return 0;
+	int result = -1;
+
+	if (fd == 0 || fd == 1 || fd > FD_MAX + 1 || fd < 0)
+	{
+		return result;
 	}
 	lock_acquire(&filesys_lock);
 
-	struct thread *cur = thread_current();	
-	int result = -1;
+	struct thread *cur = thread_current();
 
-	if(cur->descls[fd - 2] != NULL){
+	if (cur->descls[fd - 2] != NULL)
+	{
 		result = file_length(cur->descls[fd - 2]);
 	}
 
@@ -126,6 +144,8 @@ int filesize(int fd)
 	return result;
 }
 
+/*	read file and copy "size" bytes into buffuer
+	return number of bytes actually copied */
 int read(int fd, void *buffer, unsigned size)
 {
 	if (fd == 0)
@@ -142,12 +162,13 @@ int read(int fd, void *buffer, unsigned size)
 		return 0;
 	}
 
-	struct thread *cur = thread_current();	
+	struct thread *cur = thread_current();
 	int result = 0;
 
 	lock_acquire(&filesys_lock);
 
-	if(cur->descls[fd - 2] != NULL){
+	if (cur->descls[fd - 2] != NULL)
+	{
 		result = file_read(thread_current()->descls[fd - 2], buffer, size);
 	}
 
@@ -155,6 +176,8 @@ int read(int fd, void *buffer, unsigned size)
 	return result;
 }
 
+/*	read buffer and copy "size" bytes into file
+	return number of bytes actually copied */
 int write(int fd, const void *buffer, unsigned size)
 {
 	if (fd == 0 || fd > FD_MAX + 1 || fd < 0)
@@ -168,12 +191,13 @@ int write(int fd, const void *buffer, unsigned size)
 		return size;
 	}
 
-	struct thread *cur = thread_current();	
+	struct thread *cur = thread_current();
 	int result = 0;
 
 	lock_acquire(&filesys_lock);
 
-	if(cur->descls[fd - 2] != NULL){
+	if (cur->descls[fd - 2] != NULL)
+	{
 		result = file_write(cur->descls[fd - 2], buffer, size);
 	}
 
@@ -181,50 +205,60 @@ int write(int fd, const void *buffer, unsigned size)
 	return result;
 }
 
+/*	Sets the current position in file to position bytes from the
+	start of the file. */
 void seek(int fd, unsigned position)
 {
-	if(fd == 0 || fd == 1 || fd > FD_MAX + 1 || fd < 0){
+	if (fd == 0 || fd == 1 || fd > FD_MAX + 1 || fd < 0)
+	{
 		return;
 	}
-	struct thread *cur = thread_current();	
+	struct thread *cur = thread_current();
 
 	lock_acquire(&filesys_lock);
 
-	if(cur->descls[fd - 2] != NULL){
-		file_seek(thread_current()->descls[fd -2], position);
+	if (cur->descls[fd - 2] != NULL)
+	{
+		file_seek(thread_current()->descls[fd - 2], position);
 	}
 
 	lock_release(&filesys_lock);
 }
 
+/* return current position in file */
 unsigned tell(int fd)
 {
-	if(fd == 0 || fd == 1 || fd > FD_MAX + 1 || fd < 0){
+	if (fd == 0 || fd == 1 || fd > FD_MAX + 1 || fd < 0)
+	{
 		return 0;
 	}
-	struct thread *cur = thread_current();	
+	struct thread *cur = thread_current();
 	int result = 0;
 
 	lock_acquire(&filesys_lock);
 
-	if(cur->descls[fd - 2] != NULL){
-		result = file_tell(thread_current()->descls[fd -2]);
+	if (cur->descls[fd - 2] != NULL)
+	{
+		result = file_tell(thread_current()->descls[fd - 2]);
 	}
 
 	lock_release(&filesys_lock);
 	return result;
 }
 
+/* close file */
 void close(int fd)
 {
-	if(fd == 0 || fd == 1 || fd > FD_MAX + 1 || fd < 0){
+	if (fd == 0 || fd == 1 || fd > FD_MAX + 1 || fd < 0)
+	{
 		return;
 	}
-	struct thread *cur = thread_current();	
+	struct thread *cur = thread_current();
 
 	lock_acquire(&filesys_lock);
 
-	if(cur->descls[fd - 2] != NULL){
+	if (cur->descls[fd - 2] != NULL)
+	{
 		file_close(thread_current()->descls[fd - 2]);
 		cur->descls[fd - 2] = NULL;
 	}
@@ -232,6 +266,7 @@ void close(int fd)
 	lock_release(&filesys_lock);
 }
 
+/* check if pointer address is valid */
 static bool is_valid_address(void *p)
 {
 	if (p == NULL || !is_user_vaddr((uint32_t *)p) || pagedir_get_page(thread_current()->pagedir, (uint32_t *)p) == NULL)
@@ -347,15 +382,8 @@ syscall_handler(struct intr_frame *f UNUSED)
 		exit(-1);
 	}
 
-	// uint32_t* args = ((uint32_t*) f->esp);
-	// printf("System call number: %d\n", args[0]);
-	// if (args[0] == SYS_EXIT) {
-
 	if (rv != 8675309)
 	{
 		f->eax = rv;
 	}
-	// printf("%s: exit(%d)\n", &thread_current ()->name, args[1]);
-	// 	thread_exit();
-	// }
 }

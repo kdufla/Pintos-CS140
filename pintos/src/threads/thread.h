@@ -27,7 +27,7 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
-#define FD_MAX 128
+#define FD_MAX 128                      /* Max open files available for one thread */
 
 /* A kernel thread or user process.
 
@@ -110,12 +110,12 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
-    struct file *descls[FD_MAX];
+    struct file *descls[FD_MAX];        /* List of open files */
     struct list child_infos;            /* List of exit infos about children */
-    struct child_info *info;
-    struct lock free_lock;
-    int exit_status;
-    struct file *executable;
+    struct child_info *info;            /* Its own info (storead in child_infos of parent)
+    struct lock free_lock;              /* Used to deny access to children on their child_info structs */
+    int exit_status;                    /* Exit status passed to syscall exit by user */
+    struct file *executable;            /* File that currently is being executed if this thread is proccess (else NULL) */
 #endif
 
     /* Owned by thread.c. */
@@ -130,10 +130,10 @@ struct thread
 struct child_info
   {
     tid_t tid;
-    int status;
+    int status;                         /* exit status */
     bool is_alive;
-    struct semaphore sema_raised_by_child;
-    struct lock *parent_free_lock;      /* Lock used by parent and child for manipulating this struct */
+    struct semaphore sema_wait_for_child;
+    struct lock *parent_free_lock;      /* free_lock from parent's struct thread */
     struct list_elem elem;              /* List element. */
   };
 #endif

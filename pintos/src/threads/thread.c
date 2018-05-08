@@ -226,8 +226,9 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority, thread_current ()->recent_cpu, thread_current ()->nice);
   tid = t->tid = allocate_tid ();
+#ifdef USERPROG
   t->info->tid = tid;
-
+#endif
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
   kf->eip = NULL;
@@ -643,19 +644,20 @@ init_thread (struct thread *t, const char *name, int priority, fixed_point_t rec
   list_init(&t->child_infos);
   lock_init(&(t->free_lock));
 
+  t->executable = NULL;
 
   if(is_not_init){
     struct child_info *info;
     info = palloc_get_page (PAL_ZERO);
     if (info == NULL)
-      return; // Maybe we need to delete this thread if palloc fails for child_info struct?
-
+      return;
+      
     memset (info, 0, sizeof *info);
 
     info->status = 0;
     info->is_alive = true;
 
-    sema_init(&(info->sema_raised_by_child), 0);
+    sema_init(&(info->sema_wait_for_child), 0);
     info->parent_free_lock = &(thread_current ()->free_lock);
 
     t->info = info;

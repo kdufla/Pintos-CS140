@@ -18,6 +18,7 @@
 #include "threads/synch.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "syscall.h"
 
 // static struct semaphore temporary;
 static thread_func start_process NO_RETURN;
@@ -68,6 +69,7 @@ process_execute (const char *file_name)
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
 
+  /* Wait for start_proccess to finish */
   sema_down(&sema);
 
   return (status ? tid : -1);
@@ -112,6 +114,7 @@ start_process (void *fws)
   NOT_REACHED ();
 }
 
+/* If child by id child_id exsits return its info, else NULL */ 
 struct child_info *
 get_child_info (struct thread *parent, tid_t child_tid)
 {
@@ -146,7 +149,7 @@ process_wait (tid_t child_tid)
   if (info == NULL)
     return -1;
 
-  sema_down(&(info->sema_raised_by_child));
+  sema_down(&(info->sema_wait_for_child));
   
   lock_acquire (&(parent->free_lock));
   
@@ -168,7 +171,8 @@ process_exit (void)
   uint32_t *pd;
 
 
-
+  /* Close all open files */
+  lock_acquire(&filesys_lock);  
   int k = 0;
   for(; k < FD_MAX; k++){
     if(cur->descls[k] != NULL){
@@ -176,6 +180,7 @@ process_exit (void)
       cur->descls[k] = NULL;
     }
   }
+  lock_release(&filesys_lock);
 
 
 
@@ -202,6 +207,7 @@ process_exit (void)
   struct list *list = &(cur->child_infos);
   struct child_info *info;
 
+  /* Deasroy child infos for dead children and inform alive children to destroy their infos */
   for (e = list_begin (list); e != list_end (list); e = list_next (e)){
     info = list_entry(e, struct child_info, elem);
     if (info->is_alive){
@@ -211,10 +217,12 @@ process_exit (void)
       palloc_free_page(info);
     }
   }
-  
   lock_release (&(cur->free_lock));
+  
   lock_acquire (cur->info->parent_free_lock);
 
+  /* Inform parent that this thread is dying.
+    if parent is already dead, destroy chidl_info */
   if (cur->info->is_alive){
     cur->info->is_alive = false;
     cur->info->status = cur->exit_status;
@@ -225,8 +233,12 @@ process_exit (void)
 
   lock_release (cur->info->parent_free_lock);
 
-  sema_up(&(cur->info->sema_raised_by_child));
+  sema_up(&(cur->info->sema_wait_for_child));
+	
+  /* Close executable */
+  lock_acquire(&filesys_lock);  
   file_close(cur->executable);
+  lock_release(&filesys_lock);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -359,17 +371,22 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
+	lock_acquire(&filesys_lock);
   file = filesys_open (file_name_);
+  lock_release(&filesys_lock);
   if (file == NULL)
     {
       printf ("load: %s: open failed\n", file_name);
       goto done;
     }
-  // printf("deny file: %s\n", file_name);
+
+  /* Deny write in executable */
+	lock_acquire(&filesys_lock);
   file_deny_write(file);
-  // printf("deny done: %s\n", file_name);
+  lock_release(&filesys_lock);
 
   /* Read and verify executable header. */
+	lock_acquire(&filesys_lock);
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
       || memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
       || ehdr.e_type != 2
@@ -379,8 +396,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
       || ehdr.e_phnum > 1024)
     {
       printf ("load: %s: error loading executable\n", file_name);
+      lock_release(&filesys_lock);
       goto done;
     }
+  lock_release(&filesys_lock);
 
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
@@ -388,12 +407,19 @@ load (const char *file_name, void (**eip) (void), void **esp)
     {
       struct Elf32_Phdr phdr;
 
-      if (file_ofs < 0 || file_ofs > file_length (file))
+    	lock_acquire(&filesys_lock);
+      if (file_ofs < 0 || file_ofs > file_length (file)){
+        lock_release(&filesys_lock);
         goto done;
+      }
       file_seek (file, file_ofs);
 
-      if (file_read (file, &phdr, sizeof phdr) != sizeof phdr)
+      if (file_read (file, &phdr, sizeof phdr) != sizeof phdr){
+        lock_release(&filesys_lock);
         goto done;
+      }
+      lock_release(&filesys_lock);
+
       file_ofs += sizeof phdr;
       switch (phdr.p_type)
         {
@@ -454,7 +480,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* We arrive here whether the load is successful or not. */
   // file_close (file);
   if(!success){
+  	lock_acquire(&filesys_lock);
     file_close(file);
+    lock_release(&filesys_lock);
   }else{
     t->executable = file;
   }
@@ -476,8 +504,12 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
     return false;
 
   /* p_offset must point within FILE. */
-  if (phdr->p_offset > (Elf32_Off) file_length (file))
+	lock_acquire(&filesys_lock);
+  if (phdr->p_offset > (Elf32_Off) file_length (file)){
+    lock_release(&filesys_lock);
     return false;
+  }
+  lock_release(&filesys_lock);
 
   /* p_memsz must be at least as big as p_filesz. */
   if (phdr->p_memsz < phdr->p_filesz)
@@ -533,6 +565,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
 
+	lock_acquire(&filesys_lock);
   file_seek (file, ofs);
   while (read_bytes > 0 || zero_bytes > 0)
     {
@@ -544,13 +577,16 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
       /* Get a page of memory. */
       uint8_t *kpage = palloc_get_page (PAL_USER);
-      if (kpage == NULL)
+      if (kpage == NULL){
+        lock_release(&filesys_lock);
         return false;
+      }
 
       /* Load this page. */
       if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
         {
           palloc_free_page (kpage);
+          lock_release(&filesys_lock);
           return false;
         }
       memset (kpage + page_read_bytes, 0, page_zero_bytes);
@@ -559,6 +595,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       if (!install_page (upage, kpage, writable))
         {
           palloc_free_page (kpage);
+          lock_release(&filesys_lock);
           return false;
         }
 
@@ -567,6 +604,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
     }
+  lock_release(&filesys_lock);
   return true;
 }
 

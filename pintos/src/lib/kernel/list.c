@@ -440,11 +440,7 @@ list_sort (struct list *list, list_less_func *less, void *aux)
     }
   while (output_run_cnt > 1);
 
-  if(!is_sorted (list_begin (list), list_end (list), less, aux)){
-    bb(list_begin (list));
-    ASSERT (is_sorted (list_begin (list), list_end (list), less, aux));
-
-  }
+  ASSERT (is_sorted (list_begin (list), list_end (list), less, aux));
 }
 
 /* Inserts ELEM in the proper position in LIST, which must be
