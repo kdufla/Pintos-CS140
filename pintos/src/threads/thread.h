@@ -112,7 +112,7 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
     struct file *descls[FD_MAX];        /* List of open files */
     struct list child_infos;            /* List of exit infos about children */
-    struct child_info *info;            /* Its own info (storead in child_infos of parent)
+    struct child_info *info;            /* Its own info (storead in child_infos of parent) */
     struct lock free_lock;              /* Used to deny access to children on their child_info structs */
     int exit_status;                    /* Exit status passed to syscall exit by user */
     struct file *executable;            /* File that currently is being executed if this thread is proccess (else NULL) */
