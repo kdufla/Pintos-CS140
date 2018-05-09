@@ -133,15 +133,24 @@
 
 ### ცვლადები
 
-* 
+* `struct lock filesys_lock` - *lock*-ი, რომელიც გამოიყენება ფაილური სისტემის ჩასაკეტად მაშინ, როცა მასზე რამე მანიპულაცია ხდება.
+* `#define FD_MAX 128` - ერთი პროცესისთვის მაქსიმალური გახსნილი ფაილების რაოდენობა.
 
 დამატებითი ცვლადები `struct thread`-ში:
 
-* 
+* `struct file *descls[FD_MAX]` - მასივი, რომელშიც შენახულია ამ ნაკადის ფაილდესკრიპტორები, ანუ გახსნილი ფაილების იდენტიფიკატორები.
 
 ### ფუნქციები
 
-* 
+* `bool create(const char *file, unsigned initial_size)` - სისტემური ბრძანება `create`-ის შემსრულებელი ფუნქცია.
+* `bool remove(const char *file)` - სისტემური ბრძანება `remove`-ის შემსრულებელი ფუნქცია.
+* `int open(const char *file)` - სისტემური ბრძანება `open`-ის შემსრულებელი ფუნქცია.
+* `int filesize(int fd)` - სისტემური ბრძანება `filesize`-ის შემსრულებელი ფუნქცია.
+* `int read(int fd, void *buffer, unsigned size)` - სისტემური ბრძანება `read`-ის შემსრულებელი ფუნქცია.
+* `int write(int fd, const void *buffer, unsigned size)` - სისტემური ბრძანება `write`-ის შემსრულებელი ფუნქცია.
+* `void seek(int fd, unsigned position)` - სისტემური ბრძანება `seek`-ის შემსრულებელი ფუნქცია.
+* `unsigned tell(int fd)` - სისტემური ბრძანება `tell`-ის შემსრულებელი ფუნქცია.
+* `void close(int fd)` - სისტემური ბრძანება `close`-ის შემსრულებელი ფუნქცია.
 
 ## ალგორითმები
 
