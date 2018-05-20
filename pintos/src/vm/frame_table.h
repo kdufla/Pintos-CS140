@@ -7,22 +7,27 @@
 #include "threads/loader.h"
 #include "threads/palloc.h"
 #include "lib/kernel/list.h"
+#include "threads/synch.h"
 
-enum frame_flags
-  {
-    FRAME_ACCESSED = 001,
-    FRAME_DIRTY = 002
-  };
+// enum frame_flags
+//   {
+//     FRAME_ACCESSED = 001,
+//     FRAME_DIRTY = 002
+//   };
 
-struct list frame_table;
+struct f_table{
+  struct list frame_ls;
+  struct lock frame_lock;
+};
 
 struct frame
 {
 	struct supl_page *page;
 	struct list_elem ft_elem;
-	int flags;                /* first bit - accessed, second bit - dirty */
 };
 
 void frame_table_init (void);
+
+void *get_free_frame(enum palloc_flag, supl_page *page_entry);
 
 #endif
