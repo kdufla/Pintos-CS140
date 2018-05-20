@@ -22,6 +22,7 @@
 #include "threads/palloc.h"
 #include "threads/pte.h"
 #include "threads/thread.h"
+#include "vm/frame_table.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #include "userprog/exception.h"
@@ -103,6 +104,13 @@ main (void)
 #ifdef USERPROG
   tss_init ();
   gdt_init ();
+#endif
+
+  /* Virtual memory. */
+#ifdef USERPROG
+
+  // frame_table_init ();
+
 #endif
 
   /* Initialize interrupt handlers. */
