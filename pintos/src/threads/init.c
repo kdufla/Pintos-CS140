@@ -109,7 +109,7 @@ main (void)
   /* Virtual memory. */
 #ifdef USERPROG
 
-  // frame_table_init ();
+  frame_table_init ();
 
 #endif
 
