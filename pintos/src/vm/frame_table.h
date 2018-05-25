@@ -12,6 +12,8 @@
 #include "threads/malloc.h"
 #include "page_table.h"
 #include "../lib/stdbool.h"
+#include "../lib/kernel/hash.h"
+#include "../userprog/pagedir.h"
 
 // enum frame_flags
 //   {
@@ -34,6 +36,8 @@ struct frame
 
 void frame_table_init (void);
 
-void *get_free_frame(struct supl_page *page_entry);
+void *get_free_frame(struct hash *supl_pages);
+
+bool load_file_in_page(struct supl_page *page);
 
 #endif

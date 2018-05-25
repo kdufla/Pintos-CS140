@@ -7,6 +7,7 @@
 #include "threads/synch.h"
 #include "threads/fixed-point.h"
 #include "filesys/file.h"
+#include "../lib/kernel/hash.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -116,6 +117,7 @@ struct thread
     struct lock free_lock;              /* Used to deny access to children on their child_info structs */
     int exit_status;                    /* Exit status passed to syscall exit by user */
     struct file *executable;            /* File that currently is being executed if this thread is proccess (else NULL) */
+    struct hash pages;
 #endif
 
     /* Owned by thread.c. */

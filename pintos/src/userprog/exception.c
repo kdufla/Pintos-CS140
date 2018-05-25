@@ -11,6 +11,7 @@ static long long page_fault_cnt;
 
 static void kill (struct intr_frame *);
 static void page_fault (struct intr_frame *);
+struct supl_page *page_lookup (const void *address);
 
 /* Registers handlers for interrupts that can be caused by user
    programs.
@@ -123,9 +124,9 @@ kill (struct intr_frame *f)
 static void
 page_fault (struct intr_frame *f UNUSED)
 {
-  // bool not_present;  /* True: not-present page, false: writing r/o page. */
-  // bool write;        /* True: access was write, false: access was read. */
-  // bool user;         /* True: access by user, false: access by kernel. */
+  bool not_present;  /* True: not-present page, false: writing r/o page. */
+  bool write;        /* True: access was write, false: access was read. */
+  bool user;         /* True: access by user, false: access by kernel. */
   void *fault_addr;  /* Fault address. */
 
   /* Obtain faulting address, the virtual address that was
@@ -145,9 +146,16 @@ page_fault (struct intr_frame *f UNUSED)
   page_fault_cnt++;
 
   /* Determine cause. */
-  // not_present = (f->error_code & PF_P) == 0;
-  // write = (f->error_code & PF_W) != 0;
-  // user = (f->error_code & PF_U) != 0;
+  not_present = (f->error_code & PF_P) == 0;
+  write = (f->error_code & PF_W) != 0;
+  user = (f->error_code & PF_U) != 0;
+
+  if(user || is_user_vaddr(fault_addr)){
+    struct supl_page *p = page_lookup(fault_addr);
+  load_file_in_page(p);
+
+  }
+
 
   // /* To implement virtual memory, delete the rest of the function
   //    body, and replace it with code that brings in the page to
@@ -161,3 +169,16 @@ page_fault (struct intr_frame *f UNUSED)
   exit(-1);
 }
 
+/* Returns the page containing the given virtual address,
+   or a null pointer if no such page exists. */
+struct supl_page *page_lookup (const void *address)
+{
+  struct supl_page p;
+  struct hash_elem *e;
+
+  p.addr = address;
+  struct thread *th = thread_current();
+  
+  e = hash_find (&th->pages, &p.hash_elem);
+  return e != NULL ? hash_entry (e, struct page, hash_elem) : NULL;
+}
