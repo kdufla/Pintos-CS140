@@ -13,10 +13,10 @@ struct f_table frame_table;
  */
 void frame_table_init()
 {
+	memset(&frame_table, 0, sizeof(struct f_table));
+
 	list_init(&frame_table.frame_ls);
 	lock_init(&frame_table.frame_lock);
-
-	memset(&frame_table, 0, sizeof(struct f_table));
 
 	frame_table.frame_ls_array = malloc(sizeof(struct frame) * user_pages);
 

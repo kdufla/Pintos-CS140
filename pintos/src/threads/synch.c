@@ -70,6 +70,10 @@ sema_down (struct semaphore *sema)
   old_level = intr_disable ();
   while (sema->value == 0)
     {
+      // struct list_elem *e = &thread_current ()->elem;
+      // if(e != NULL && e->prev != NULL && e->next != NULL){
+      //   list_remove(e);
+      // }
       list_push_back(&sema->waiters, &thread_current ()->elem);
       thread_block ();
     }
