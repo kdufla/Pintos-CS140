@@ -277,6 +277,17 @@ static bool is_valid_address(void *p)
 	return true;
 }
 
+/* check if pointer address is valid */
+static bool is_valid_address_p(void *p)
+{
+	if (p == NULL || !is_user_vaddr((uint32_t *)p))
+	{
+		return false;
+	}
+
+	return true;
+}
+
 /* given pointer and check if every byte of this pointer is valid */
 static uint32_t *get_arg_int(uint32_t *p)
 {
@@ -304,7 +315,7 @@ static void *get_arg_pointer(void *p, int len)
 	{
 		do
 		{
-			if (!is_valid_address(p))
+			if (!is_valid_address_p(p))
 			{
 				exit(-1);
 			}
@@ -314,7 +325,7 @@ static void *get_arg_pointer(void *p, int len)
 	{
 		while (len-- > 0)
 		{
-			if (!is_valid_address((char *)p++))
+			if (!is_valid_address_p((char *)p++))
 			{
 				exit(-1);
 			}

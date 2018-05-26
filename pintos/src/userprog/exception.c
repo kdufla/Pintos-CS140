@@ -160,9 +160,8 @@ page_fault (struct intr_frame *f UNUSED)
 
     if(e != NULL){
       load_file_in_page(hash_entry (e, struct supl_page, hash_elem));
+      return;
     }
-
-    return;
   }
 
 
