@@ -32,4 +32,9 @@ struct supl_page
 void set_unalocated_page(struct file *file, off_t ofs, uint8_t *upage,
               uint32_t read_bytes, uint32_t zero_bytes, bool writable);
 
+
+unsigned page_hash (const struct hash_elem *p_, void *aux);
+
+bool page_less (const struct hash_elem *a_, const struct hash_elem *b_,
+           void *aux UNUSED);
 #endif

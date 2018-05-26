@@ -149,7 +149,7 @@ page_fault (struct intr_frame *f UNUSED)
   // write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  if(user || is_user_vaddr(fault_addr)){
+  if(fault_addr !=NULL && (user || is_user_vaddr(fault_addr))){
     struct supl_page p;
     struct hash_elem *e;
 
@@ -161,6 +161,8 @@ page_fault (struct intr_frame *f UNUSED)
     if(e != NULL){
       load_file_in_page(hash_entry (e, struct supl_page, hash_elem));
     }
+
+    return;
   }
 
 

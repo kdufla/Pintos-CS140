@@ -364,6 +364,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
   char *str_buf[file_name_len + 1];
   char *file_name_ = get_first_token((char *)str_buf, file_name, file_name_len);
 
+  hash_init(&t->pages, page_hash, page_less, NULL);
+
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL)
@@ -605,6 +607,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
+      ofs += page_read_bytes;
     }
   lock_release(&filesys_lock);
   return true;

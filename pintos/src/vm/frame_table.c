@@ -31,51 +31,6 @@ static void eviction_algorithm()
 	ASSERT(out_of_space);
 }
 
-/*
- * given hash table of supplementary pages.
- * 
- * make supplementary page entry that contains free page
- * pointer and add it in hash table
- * 
- * make frame that contains previously allocated supplementary
- * page and add it in frame table
- */
-void *get_free_frame(struct hash *supl_pages)
-{
-
-	void *pg = palloc_get_page(PAL_USER & PAL_ZERO);
-
-	while (pg == NULL)
-	{
-		eviction_algorithm();
-		pg = palloc_get_page(PAL_USER & PAL_ZERO);
-	}
-
-	size_t i;
-	struct frame *frame = NULL;
-	lock_acquire(&frame_table.frame_lock);
-	for (i = 0; i < user_pages; i++)
-	{
-		if (frame_table.frame_ls_array[i].in_use == false)
-		{
-			frame = &frame_table.frame_ls_array[i];
-			frame->in_use = true;
-			list_push_back(&frame_table.frame_ls, &frame->ft_elem);
-			break;
-		}
-	}
-	lock_release(&frame_table.frame_lock);
-
-	struct supl_page *sp = malloc(sizeof(struct supl_page));
-	memset(sp, 0, sizeof(struct supl_page));
-	sp->addr = pg;
-
-	hash_insert(supl_pages, &sp->hash_elem);
-
-	frame->page = sp;
-
-	return pg;
-}
 
 bool load_file_in_page(struct supl_page *page)
 {
