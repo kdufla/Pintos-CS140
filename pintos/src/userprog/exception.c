@@ -123,8 +123,8 @@ kill (struct intr_frame *f)
 static void
 page_fault (struct intr_frame *f UNUSED)
 {
-  // bool not_present;  /* True: not-present page, false: writing r/o page. */
-  // bool write;        /* True: access was write, false: access was read. */
+  bool not_present;  /* True: not-present page, false: writing r/o page. */
+  bool write;        /* True: access was write, false: access was read. */
   bool user;         /* True: access by user, false: access by kernel. */
   void *fault_addr;  /* Fault address. */
 
@@ -145,15 +145,15 @@ page_fault (struct intr_frame *f UNUSED)
   page_fault_cnt++;
 
   /* Determine cause. */
-  // not_present = (f->error_code & PF_P) == 0;
-  // write = (f->error_code & PF_W) != 0;
+  not_present = (f->error_code & PF_P) == 0;
+  write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  if(fault_addr !=NULL && (user || is_user_vaddr(fault_addr))){
+  if(fault_addr !=NULL && is_user_vaddr(fault_addr)){
     struct supl_page p;
     struct hash_elem *e;
 
-    p.addr = fault_addr;
+    p.addr = (void *)(fault_addr - (size_t)fault_addr % PGSIZE);
     struct thread *th = thread_current();
     
     e = hash_find (&th->pages, &p.hash_elem);
