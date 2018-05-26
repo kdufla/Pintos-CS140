@@ -568,7 +568,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (ofs % PGSIZE == 0);
 
 	lock_acquire(&filesys_lock);
-  file_seek (file, ofs);
+  // file_seek (file, ofs);
   while (read_bytes > 0 || zero_bytes > 0)
     {
       /* Calculate how to fill this page.
