@@ -25,10 +25,35 @@ void frame_table_init()
 	memset(frame_table.frame_ls_array, 0, sizeof(struct frame) * user_pages);
 }
 
+static void evict(uint32_t *pd, struct frame *frame, void *vaddr)
+{
+	ASSERT (vaddr != NULL);
+
+	palloc_free_page (pagedir_get_page (pd, vaddr));
+	pagedir_clear_page (pd, vaddr);
+	remove_frame (frame);
+}
+
 static void eviction_algorithm()
 {
-	int out_of_space = 0;
-	ASSERT(out_of_space);
+	uint32_t *pd = thread_current ()->pagedir;
+
+	lock_acquire (&frame_table.frame_lock);
+
+	struct frame *frame = list_entry (list_pop_front (&frame_table.frame_ls), struct frame, ft_elem);
+	void *vaddr = frame->page->addr;
+
+	while (pagedir_is_accessed (pd, vaddr))
+	{
+		pagedir_set_accessed (pd, vaddr, false);
+		list_push_back(&frame_table.frame_ls, &(frame->ft_elem));
+		frame = list_entry (list_pop_front (&frame_table.frame_ls), struct frame, ft_elem);
+		vaddr = frame->page->addr;
+	}
+
+	lock_release (&frame_table.frame_lock);
+
+	evict (pd, frame, vaddr);
 }
 
 void remove_frame(struct frame *frame)
