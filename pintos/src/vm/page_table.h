@@ -26,6 +26,7 @@ struct supl_page
 	bool dirty;
 
 	int swap_adr;
+	int mapid;
 	// bool evicted_in_filesys;
 };
 

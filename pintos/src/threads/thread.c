@@ -643,6 +643,9 @@ init_thread (struct thread *t, const char *name, int priority, fixed_point_t rec
   for(i = 0; i < FD_MAX; i++){
     t->descls[i] = NULL;
   }
+  
+  memset(t->maps, 0, sizeof(struct mapel) * MAP_MAX);
+
   list_init(&t->child_infos);
   lock_init(&(t->free_lock));
 

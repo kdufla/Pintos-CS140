@@ -22,6 +22,7 @@ static void halt(void);
 void exit(int status);
 static pid_t exec(const char *file);
 static int wait(pid_t pid);
+
 bool create(const char *file, unsigned initial_size);
 bool remove(const char *file);
 int open(const char *file);
@@ -31,6 +32,9 @@ int write(int fd, const void *buffer, unsigned size);
 void seek(int fd, unsigned position);
 unsigned tell(int fd);
 void close(int fd);
+
+mapid_t mmap(int fd, void *addr);
+void munmap(mapid_t);
 
 void syscall_init(void)
 {
@@ -265,6 +269,86 @@ void close(int fd)
 
 	lock_release(&filesys_lock);
 }
+
+#define OVERLAP(a, b, x, y) ((x >= a && x <= b) || (y >= a && y <= b))
+
+static bool is_overlap(struct mapel *mp, size_t first, size_t last)
+{
+	size_t i;
+	for (i = 0; i < MAP_MAX; i++)
+	{
+		if (mp[i].first != 0 && OVERLAP(mp[i].first, mp[i].last, first, last))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+mapid_t mmap(int fd, void *addr)
+{
+	if (fd == 0 || fd == 1 || fd > FD_MAX + 1 || fd < 0 || (size_t)addr % PGSIZE != 0)
+	{
+		return -1;
+	}
+
+	struct thread *th = thread_current();
+
+	struct file *file = th->descls[fd - 2];
+	if (file == NULL)
+	{
+		return -1;
+	}
+	file = file_reopen(file);
+
+	size_t i, first = (size_t)addr, last, size_bytes, size_pages, zeros;
+
+	size_bytes = file_length(file);
+	size_pages = size_bytes / PGSIZE + size_bytes % PGSIZE == 0 ? 0 : 1;
+	zeros = size_pages * PGSIZE - size_bytes;
+
+	last = first + size_pages;
+
+	if (is_overlap(th->maps, first, last))
+	{
+		return -1;
+	}
+
+	for (i = 0; i < MAP_MAX; i++)
+	{
+		if (th->maps[i].first == 0)
+		{
+			th->maps[i].first = first;
+			th->maps[i].last = last;
+			th->maps[i].file = file;
+
+			size_t n;
+
+			for (n = 0; n < size_pages; n++)
+			{
+				struct supl_page *sp = malloc(sizeof(struct supl_page));
+				memset(sp, 0, sizeof(struct supl_page));
+
+				sp->addr = addr;
+				sp->mapid = i;
+				if (n == size_pages - 1)
+				{
+					sp->zero_bytes = zeros;
+				}
+
+				hash_insert(&th->pages, &sp->hash_elem);
+
+				addr += PGSIZE;
+			}
+
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+void munmap(mapid_t);
 
 /* check if pointer address is valid */
 static bool is_valid_address(void *p)

@@ -9,6 +9,7 @@
 #include "filesys/file.h"
 #include "../lib/kernel/hash.h"
 #include "../vm/page_table.h"
+#include "../userprog/mmap.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -30,6 +31,7 @@ typedef int tid_t;
 #define PRI_MAX 63                      /* Highest priority. */
 
 #define FD_MAX 128                      /* Max open files available for one thread */
+#define MAP_MAX 128
 
 /* A kernel thread or user process.
 
@@ -108,7 +110,7 @@ struct thread
     struct list_elem elem;              /* List element. */
     fixed_point_t recent_cpu;
 
-
+// #define USERPROG
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -118,7 +120,9 @@ struct thread
     struct lock free_lock;              /* Used to deny access to children on their child_info structs */
     int exit_status;                    /* Exit status passed to syscall exit by user */
     struct file *executable;            /* File that currently is being executed if this thread is proccess (else NULL) */
+    
     struct hash pages;
+    struct mapel maps[MAP_MAX];
 #endif
 
     /* Owned by thread.c. */
