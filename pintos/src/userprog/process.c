@@ -26,6 +26,7 @@ struct child_info *get_child_info (struct thread *parent, tid_t child_tid);
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 static uint16_t get_first_token_len(const char *str);
 static char *get_first_token(char *dest, const char *src, uint16_t len);
+void free_process_pages(struct hash_elem *elem, void *aux);
 
 struct file_with_sema{
   char *file;
@@ -163,6 +164,13 @@ process_wait (tid_t child_tid)
   return status;
 }
 
+void
+free_process_pages(struct hash_elem *elem, void *aux UNUSED)
+{
+  struct supl_page *s_page = hash_entry (elem, struct supl_page, hash_elem);
+  free(s_page);
+}
+
 /* Free the current process's resources. */
 void
 process_exit (void)
@@ -179,7 +187,8 @@ process_exit (void)
       cur->descls[k] = NULL;
     }
   }
-
+  
+  // hash_destroy (&(cur->pages), free_process_pages);
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
