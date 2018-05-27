@@ -38,6 +38,8 @@ void frame_table_init (void);
 
 void *get_free_frame(struct hash *supl_pages);
 
+void remove_frame(struct frame *frame);
+
 bool alloc_page(struct supl_page *page, bool load);
 
 #endif

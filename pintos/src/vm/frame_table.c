@@ -31,6 +31,14 @@ static void eviction_algorithm()
 	ASSERT(out_of_space);
 }
 
+void remove_frame(struct frame *frame)
+{
+	ASSERT(frame != NULL);
+	frame->in_use = false;
+	lock_acquire(&frame_table.frame_lock);
+	list_remove (&(frame->ft_elem));
+	lock_release(&frame_table.frame_lock);
+}
 
 
 bool alloc_page(struct supl_page *page, bool load)
@@ -59,6 +67,8 @@ bool alloc_page(struct supl_page *page, bool load)
 			break;
 		}
 	}
+
+	page->frame = frame;
 
 	lock_release(&frame_table.frame_lock);
 

@@ -19,6 +19,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "syscall.h"
+#include "vm/frame_table.h"
 
 // static struct semaphore temporary;
 static thread_func start_process NO_RETURN;
@@ -176,8 +177,12 @@ free_process_pages(struct hash_elem *elem, void *aux UNUSED)
     file_write(s_page->file, s_page->addr, PGSIZE - s_page->zero_bytes);
   }
   
-  free(s_page);
-  
+  if (s_page->frame != NULL)
+  {
+    remove_frame (s_page->frame);
+  }
+
+  free (s_page);
 }
 
 /* Free the current process's resources. */
