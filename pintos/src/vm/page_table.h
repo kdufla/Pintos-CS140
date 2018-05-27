@@ -14,6 +14,8 @@ struct supl_page
 	struct hash_elem hash_elem; /* Hash table element. */
     void *addr;                 /* Virtual address. */
 
+    struct frame *frame;
+
 	// uint32_t *pagedir;
 	
 	struct file *file;
