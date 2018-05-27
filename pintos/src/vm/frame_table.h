@@ -38,6 +38,6 @@ void frame_table_init (void);
 
 void *get_free_frame(struct hash *supl_pages);
 
-bool load_file_in_page(struct supl_page *page);
+bool alloc_page(struct supl_page *page, bool load);
 
 #endif
