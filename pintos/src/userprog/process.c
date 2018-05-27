@@ -168,9 +168,7 @@ void
 free_process_pages(struct hash_elem *elem, void *aux UNUSED)
 {
   struct supl_page *s_page = hash_entry (elem, struct supl_page, hash_elem);
-  void *page = pagedir_get_page (thread_current ()->pagedir, s_page->addr);
-  if (page != NULL)
-    palloc_free_page (page);
+  free(s_page);
 }
 
 /* Free the current process's resources. */
@@ -190,7 +188,7 @@ process_exit (void)
     }
   }
   
-  hash_destroy (&(cur->pages), free_process_pages);
+  // hash_destroy (&(cur->pages), free_process_pages);
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
