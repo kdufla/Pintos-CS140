@@ -423,9 +423,12 @@ static void *get_arg_pointer(void *p, int len)
 #define GET_ARG_POINTER(i, len) (get_arg_pointer((uint32_t *)GET_ARG_INT(i), len))
 
 static void
-syscall_handler(struct intr_frame *f UNUSED)
+syscall_handler(struct intr_frame *f)
 {
 	int sysc_num = GET_ARG_INT(0);
+
+	struct thread *th = thread_current();
+	th->stack = (uint8_t *) f->esp;
 
 	uint32_t rv = 8675309;
 

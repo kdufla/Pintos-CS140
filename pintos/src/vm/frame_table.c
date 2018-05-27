@@ -1,7 +1,7 @@
 #include "vm/frame_table.h"
 
 static void eviction_algorithm(void);
-bool load_file_in_page(struct supl_page *page);
+bool alloc_page(struct supl_page *page, bool load);
 static bool install_page_f (void *upage, void *kpage, bool writable);
 
 
@@ -32,7 +32,8 @@ static void eviction_algorithm()
 }
 
 
-bool load_file_in_page(struct supl_page *page)
+
+bool alloc_page(struct supl_page *page, bool load)
 {
 
 	void *kpage = palloc_get_page(PAL_USER | PAL_ZERO);
@@ -62,13 +63,16 @@ bool load_file_in_page(struct supl_page *page)
 	lock_release(&frame_table.frame_lock);
 
 	/* Load this page. */
-	file_seek (page->file, page->ofs);
-	if (file_read(page->file, kpage, page->read_bytes) != (int)page->read_bytes)
+	if (load)
 	{
-		palloc_free_page(kpage);
-		return false;
+		file_seek (page->file, page->ofs);
+		if (file_read(page->file, kpage, page->read_bytes) != (int)page->read_bytes)
+		{
+			palloc_free_page(kpage);
+			return false;
+		}
+		memset(kpage + page->read_bytes, 0, page->zero_bytes);
 	}
-	memset(kpage + page->read_bytes, 0, page->zero_bytes);
 
 	/* Add the page to the process's address space. */
 	if (!install_page_f(page->addr, kpage, page->writable))
