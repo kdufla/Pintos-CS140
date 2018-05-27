@@ -557,7 +557,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-      set_unalocated_page(file, ofs, upage, page_read_bytes, page_zero_bytes, writable);
+      set_unalocated_page(file, ofs, upage, page_read_bytes, page_zero_bytes, writable, -1);
 
       /* Advance. */
       read_bytes -= page_read_bytes;

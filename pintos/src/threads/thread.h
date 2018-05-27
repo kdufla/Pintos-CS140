@@ -31,7 +31,7 @@ typedef int tid_t;
 #define PRI_MAX 63                      /* Highest priority. */
 
 #define FD_MAX 128                      /* Max open files available for one thread */
-#define MAP_MAX 128
+#define MAP_MAX 32
 
 /* A kernel thread or user process.
 

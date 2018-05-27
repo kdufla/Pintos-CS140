@@ -31,7 +31,7 @@ struct supl_page
 };
 
 void set_unalocated_page(struct file *file, off_t ofs, uint8_t *upage,
-              uint32_t read_bytes, uint32_t zero_bytes, bool writable);
+              uint32_t read_bytes, uint32_t zero_bytes, bool writable, int mapid);
 
 
 unsigned page_hash (const struct hash_elem *p_, void *aux);

@@ -155,6 +155,10 @@ page_fault (struct intr_frame *f UNUSED)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
+  // if(!not_present){
+  //   exit(-1);
+  // }
+
   void *esp;
 
   struct thread *th = thread_current();
@@ -166,6 +170,7 @@ page_fault (struct intr_frame *f UNUSED)
 
   if(fault_addr !=NULL && is_user_vaddr(fault_addr)){
 
+
     bool load = true;
 
     struct supl_page p;
@@ -173,7 +178,7 @@ page_fault (struct intr_frame *f UNUSED)
 
     if (stack_should_grow (fault_addr, esp)) {
 
-      set_unalocated_page(NULL, 0, (uint8_t *)p.addr, PGSIZE, 0, true);
+      set_unalocated_page(NULL, 0, (uint8_t *)p.addr, PGSIZE, 0, true, -1);
       load = false;
     }
 

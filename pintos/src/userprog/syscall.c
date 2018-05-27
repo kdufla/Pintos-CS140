@@ -15,6 +15,8 @@
 #include "../devices/input.h"
 
 static void syscall_handler(struct intr_frame *);
+static bool is_valid_address(void *p);
+static bool is_valid_address_p(void *p);
 struct lock filesys_lock;
 
 int practice(int i);
@@ -272,7 +274,7 @@ void close(int fd)
 
 #define OVERLAP(a, b, x, y) ((x >= a && x <= b) || (y >= a && y <= b))
 
-static bool is_overlap(struct mapel *mp, size_t first, size_t last)
+static bool is_overlap(struct mapel *mp, void *first, void *last)
 {
 	size_t i;
 	for (i = 0; i < MAP_MAX; i++)
@@ -287,12 +289,23 @@ static bool is_overlap(struct mapel *mp, size_t first, size_t last)
 
 mapid_t mmap(int fd, void *addr)
 {
-	if (fd == 0 || fd == 1 || fd > FD_MAX + 1 || fd < 0 || (size_t)addr % PGSIZE != 0)
+	if (fd == 0 || fd == 1 || fd > FD_MAX + 1 || fd < 0 || (size_t)addr % PGSIZE != 0 || addr == NULL)
 	{
 		return -1;
 	}
 
+	struct supl_page p;
+	p.addr = addr;
+
 	struct thread *th = thread_current();
+
+	struct hash_elem *e;
+	e = hash_find (&th->pages, &p.hash_elem);
+	
+	if(e){
+		return -1;
+	}
+
 
 	struct file *file = th->descls[fd - 2];
 	if (file == NULL)
@@ -301,13 +314,18 @@ mapid_t mmap(int fd, void *addr)
 	}
 	file = file_reopen(file);
 
-	size_t i, first = (size_t)addr, last, size_bytes, size_pages, zeros;
+	size_t i, size_bytes, ofs = 0;
+	void *first = addr, *last;
 
 	size_bytes = file_length(file);
-	size_pages = size_bytes / PGSIZE + size_bytes % PGSIZE == 0 ? 0 : 1;
-	zeros = size_pages * PGSIZE - size_bytes;
+	// size_pages = (size_bytes / PGSIZE + size_bytes % PGSIZE == 0 ? 0 : 1) << 12;
+	// zeros = size_pages * PGSIZE - size_bytes;
 
-	last = first + size_pages;
+	last = (char*)first + size_bytes / PGSIZE * PGSIZE;
+
+	if(!is_valid_address_p((void *) first) || !is_valid_address_p((void *) last)){
+		exit(-1);
+	}
 
 	if (is_overlap(th->maps, first, last))
 	{
@@ -316,30 +334,24 @@ mapid_t mmap(int fd, void *addr)
 
 	for (i = 0; i < MAP_MAX; i++)
 	{
-		if (th->maps[i].first == 0)
+		if (th->maps[i].first == NULL)
 		{
 			th->maps[i].first = first;
 			th->maps[i].last = last;
 			th->maps[i].file = file;
 
-			size_t n;
+			while (size_bytes > 0)
+		    {
+				size_t page_read_bytes = size_bytes < PGSIZE ? size_bytes : PGSIZE;
+				size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-			for (n = 0; n < size_pages; n++)
-			{
-				struct supl_page *sp = malloc(sizeof(struct supl_page));
-				memset(sp, 0, sizeof(struct supl_page));
+				set_unalocated_page(file, ofs, addr, page_read_bytes, page_zero_bytes, true, i);
 
-				sp->addr = addr;
-				sp->mapid = i;
-				if (n == size_pages - 1)
-				{
-					sp->zero_bytes = zeros;
-				}
-
-				hash_insert(&th->pages, &sp->hash_elem);
-
+				/* Advance. */
+				size_bytes -= page_read_bytes;
 				addr += PGSIZE;
-			}
+				ofs += page_read_bytes;
+    		}
 
 			return i;
 		}
@@ -348,7 +360,47 @@ mapid_t mmap(int fd, void *addr)
 	return -1;
 }
 
-void munmap(mapid_t);
+void munmap(mapid_t id){
+	struct mapel *m = thread_current()->maps;
+
+	struct file *f = m[id].file;
+
+	if(f == NULL){
+		return;
+	}
+
+	struct thread *th = thread_current();
+	int ofs = 0;
+	void *first = m[id].first, *last = m[id].last;
+
+	file_seek(f, 0);
+	for(; first <= last; first += PGSIZE, ofs += PGSIZE){
+		struct supl_page p;
+		p.addr = first;
+
+	    struct hash_elem *e;
+	    e = hash_find (&th->pages, &p.hash_elem);
+		if(e){
+			hash_delete(&th->pages, e);
+
+			struct supl_page *sp = hash_entry (e, struct supl_page, hash_elem);
+			// write(1, first, PGSIZE - sp->zero_bytes);
+			if(pagedir_is_dirty(th->pagedir, first)){
+				file_seek(f, ofs);
+				file_write(f, first, PGSIZE - sp->zero_bytes);
+			}
+
+			void *kpage = pagedir_get_page(th->pagedir, sp->addr);
+			// 	palloc_free_page(kpage);
+						
+			free(sp);
+
+		}
+	}
+
+	file_close(f);	
+
+}
 
 /* check if pointer address is valid */
 static bool is_valid_address(void *p)
@@ -475,6 +527,12 @@ syscall_handler(struct intr_frame *f)
 		break;
 	case SYS_PRACTICE:
 		rv = practice(GET_ARG_INT(1));
+		break;
+	case SYS_MMAP:
+		rv = mmap(GET_ARG_INT(1), (void*)GET_ARG_INT(2));
+		break;
+	case SYS_MUNMAP:
+		munmap(GET_ARG_INT(1));
 		break;
 	default:
 		exit(-1);

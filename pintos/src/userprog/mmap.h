@@ -5,8 +5,8 @@
 #include "../lib/stddef.h"
 
 struct mapel{
-	size_t first;
-	size_t last;
+	void *first;
+	void *last;
 	struct file *file;
 };
 

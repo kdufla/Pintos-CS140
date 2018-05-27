@@ -2,6 +2,7 @@
 #define USERPROG_SYSCALL_H
 
 #include "mmap.h"
+#include "../threads/malloc.h"
 
 typedef int pid_t;
 typedef int mapid_t;
