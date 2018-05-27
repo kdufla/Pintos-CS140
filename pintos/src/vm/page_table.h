@@ -8,6 +8,7 @@
 #include "../threads/thread.h"
 #include "threads/malloc.h"
 #include "lib/string.h"
+#include "frame_table.h"
 
 struct supl_page
 {

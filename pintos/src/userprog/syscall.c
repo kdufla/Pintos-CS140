@@ -318,6 +318,11 @@ mapid_t mmap(int fd, void *addr)
 	void *first = addr, *last;
 
 	size_bytes = file_length(file);
+
+	if(addr + size_bytes >= pg_round_down(th->stack)){
+		file_close(file);
+		return -1;
+	}
 	// size_pages = (size_bytes / PGSIZE + size_bytes % PGSIZE == 0 ? 0 : 1) << 12;
 	// zeros = size_pages * PGSIZE - size_bytes;
 

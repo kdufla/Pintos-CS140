@@ -155,9 +155,9 @@ page_fault (struct intr_frame *f UNUSED)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  // if(!not_present){
-  //   exit(-1);
-  // }
+  if(!not_present){
+    exit(-1);
+  }
 
   void *esp;
 

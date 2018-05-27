@@ -168,7 +168,16 @@ void
 free_process_pages(struct hash_elem *elem, void *aux UNUSED)
 {
   struct supl_page *s_page = hash_entry (elem, struct supl_page, hash_elem);
+  
+  struct thread *th = thread_current();
+
+  if(s_page->mapid >= 0 && pagedir_is_dirty(th->pagedir, s_page->addr)){
+    file_seek(s_page->file, s_page->ofs);
+    file_write(s_page->file, s_page->addr, PGSIZE - s_page->zero_bytes);
+  }
+  
   free(s_page);
+  
 }
 
 /* Free the current process's resources. */
@@ -188,7 +197,7 @@ process_exit (void)
     }
   }
   
-  // hash_destroy (&(cur->pages), free_process_pages);
+  hash_destroy (&(cur->pages), free_process_pages);
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
