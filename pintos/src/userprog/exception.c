@@ -112,7 +112,7 @@ kill (struct intr_frame *f)
 
 bool stack_should_grow(void *fault_addr, void *esp)
 {
-  return (char *)fault_addr + 32 == (char *)esp || (char *)fault_addr - 8 == (char *)esp;
+  return (char *)fault_addr + 32 == (char *)esp || (char *)fault_addr + 8 == (char *)esp || (char*)fault_addr > (char*) esp;
 }
 
 /* Page fault handler.  This is a skeleton that must be filled in
