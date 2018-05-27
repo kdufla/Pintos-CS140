@@ -393,10 +393,13 @@ void munmap(mapid_t id){
 			if(pagedir_is_dirty(th->pagedir, first)){
 				file_seek(f, ofs);
 				file_write(f, first, PGSIZE - sp->zero_bytes);
+
+				void *kpage = pagedir_get_page(th->pagedir, sp->addr);
+				remove_frame(sp->frame);
+				pagedir_clear_page(th->pagedir, sp->addr);
+				palloc_free_page(kpage);
 			}
 
-			void *kpage = pagedir_get_page(th->pagedir, sp->addr);
-			// 	palloc_free_page(kpage);
 						
 			free(sp);
 
