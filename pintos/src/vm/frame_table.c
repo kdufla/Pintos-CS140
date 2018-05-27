@@ -34,8 +34,8 @@ static void eviction_algorithm()
 void remove_frame(struct frame *frame)
 {
 	ASSERT(frame != NULL);
-	frame->in_use = false;
 	lock_acquire(&frame_table.frame_lock);
+	frame->in_use = false;
 	list_remove (&(frame->ft_elem));
 	lock_release(&frame_table.frame_lock);
 }
