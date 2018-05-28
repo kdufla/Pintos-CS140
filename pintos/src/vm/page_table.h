@@ -25,10 +25,7 @@ struct supl_page
 	uint32_t zero_bytes;
 	bool writable;
 	
-	bool accessed;
-	bool dirty;
-
-	int swap_adr;
+	int swapid;
 	int mapid;
 	// bool evicted_in_filesys;
 };

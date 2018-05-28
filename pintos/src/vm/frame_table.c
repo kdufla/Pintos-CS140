@@ -29,9 +29,11 @@ static void evict(uint32_t *pd, struct frame *frame, void *vaddr)
 {
 	ASSERT (vaddr != NULL);
 
-	palloc_free_page (pagedir_get_page (pd, vaddr));
-	pagedir_clear_page (pd, vaddr);
-	remove_frame (frame);
+	void *kpage = pagedir_get_page(pd, vaddr);
+	frame->page->swapid = write_in_swap(kpage);
+	remove_frame(frame);
+	pagedir_clear_page(pd, vaddr);
+	palloc_free_page(kpage);
 }
 
 static void eviction_algorithm()
@@ -114,6 +116,10 @@ bool alloc_page(struct supl_page *page, bool load)
 	{
 		palloc_free_page(kpage);
 		return false;
+	}
+
+	if(page->mapid >= 0){
+		read_from_swap(page->mapid, page->addr);
 	}
 	return true;
 }

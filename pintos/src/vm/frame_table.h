@@ -11,6 +11,7 @@
 #include "threads/synch.h"
 #include "threads/malloc.h"
 #include "page_table.h"
+#include "swap.h"
 #include "../lib/stdbool.h"
 #include "../lib/kernel/hash.h"
 #include "../userprog/pagedir.h"
