@@ -118,8 +118,8 @@ bool alloc_page(struct supl_page *page, bool load)
 		return false;
 	}
 
-	if(page->mapid >= 0){
-		read_from_swap(page->mapid, page->addr);
+	if(page->swapid >= 0){
+		read_from_swap(page->swapid, page->addr);
 	}
 	return true;
 }

@@ -188,7 +188,7 @@ page_fault (struct intr_frame *f UNUSED)
 
     if(e != NULL){
       struct supl_page *sp = hash_entry (e, struct supl_page, hash_elem);
-      load = sp->mapid >= 0 ? false : true;
+      load = sp->swapid >= 0 || !load ? false : true;
       alloc_page(sp, load);
       return;
     }
