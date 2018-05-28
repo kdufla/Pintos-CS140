@@ -19,7 +19,7 @@ block_sector_t write_in_swap(void *addr){
 	lock_acquire(&smap.lock);
 	
 	struct block *swap = block_get_role(BLOCK_SWAP);
-	int i = bitmap_scan_and_flip(smap.map, 0, 1, 1); // free page in swap
+	int i = bitmap_scan_and_flip(smap.map, 0, 1, 0); // free page in swap
 	block_sector_t ir = i * BLOCKS_IN_PAGE; // real addres in swap
 
 	for(i = 0; i < BLOCKS_IN_PAGE; i++, addr += PGSIZE / BLOCKS_IN_PAGE){
