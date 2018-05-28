@@ -74,11 +74,11 @@
 
 ## ალგორითმები
 
-*suplemental page table*-ის ინფორმაციაზე წვდომა
+* *suplemental page table*-ის ინფორმაციაზე წვდომა
 
-ზარმაცი, ანუ მოთხოვნისას დაკმაყოფილებული მეხსიერების ალოკაცია
+* ზარმაცი, ანუ მოთხოვნისას დაკმაყოფილებული მეხსიერების ალოკაცია
 
-ერთი *frame*-ის *dirty* და *accessed* ბიტების სინქრონიზება ვირტუალიზებულ ფეიჯებს შორის (კერნელისა და იუზერის ალიასის შემთხვევა)
+* ერთი *frame*-ის *dirty* და *accessed* ბიტების სინქრონიზება ვირტუალიზებულ ფეიჯებს შორის (კერნელისა და იუზერის ალიასის შემთხვევა)
 
 ## სინქრონიზაცია
 
@@ -86,7 +86,7 @@
 
 ## რატომ ავირჩიეთ ეს მიდგომა
 
-* Why did you choose the data structure(s) that you did for representing virtual-to-physical mappings?
+* *Why did you choose the data structure(s) that you did for representing virtual-to-physical mappings?*
 
 # 2. Paging to and from Disk
 
@@ -113,25 +113,25 @@
 
 ## ალგორითმები
 
-გაძევების ალგორითმი
+* გაძევების ალგორითმი
 
-ერთი პროცესის მიერ მეორე პროცესის ყოფილი *frame*-ის აღების შემთხვევაში რა იცვლება მათ შესაბამის სტრუქტურებში
+* ერთი პროცესის მიერ მეორე პროცესის ყოფილი *frame*-ის აღების შემთხვევაში რა იცვლება მათ შესაბამის სტრუქტურებში
 
-*stack*-ის გაზრდის ევრისტიკა
+* *stack*-ის გაზრდის ევრისტიკა
 
 ## სინქრონიზაცია
 
-* Explain the basics of your VM synchronization design.  In particular, explain how it prevents deadlock.  (Refer to the textbook for an explanation of the necessary conditions for deadlock.)
+* *Explain the basics of your VM synchronization design.  In particular, explain how it prevents deadlock.  (Refer to the textbook for an explanation of the necessary conditions for deadlock.)*
 
-* A page fault in process P can cause another process Q's frame to be evicted.  How do you ensure that Q cannot access or modify the page during the eviction process?  How do you avoid a race between P evicting Q's frame and Q faulting the page back in?
+* *A page fault in process P can cause another process Q's frame to be evicted.  How do you ensure that Q cannot access or modify the page during the eviction process?  How do you avoid a race between P evicting Q's frame and Q faulting the page back in?*
 
-* Suppose a page fault in process P causes a page to be read from the file system or swap.  How do you ensure that a second process Q cannot interfere by e.g. attempting to evict the frame while it is still being read in?
+* *Suppose a page fault in process P causes a page to be read from the file system or swap.  How do you ensure that a second process Q cannot interfere by e.g. attempting to evict the frame while it is still being read in?*
 
-* Explain how you handle access to paged-out pages that occur during system calls.  Do you use page faults to bring in pages (as in user programs), or do you have a mechanism for "locking" frames into physical memory, or do you use some other design?  How do you gracefully handle attempted accesses to invalid virtual addresses?
+* *Explain how you handle access to paged-out pages that occur during system calls.  Do you use page faults to bring in pages (as in user programs), or do you have a mechanism for "locking" frames into physical memory, or do you use some other design?  How do you gracefully handle attempted accesses to invalid virtual addresses?*
 
 ## რატომ ავირჩიეთ ეს მიდგომა
 
-* A single lock for the whole VM system would make synchronization easy, but limit parallelism.  On the other hand, using many locks complicates synchronization and raises the possibility for deadlock but allows for high parallelism.  Explain where your design falls along this continuum and why you chose to design it this way.
+* *A single lock for the whole VM system would make synchronization easy, but limit parallelism.  On the other hand, using many locks complicates synchronization and raises the possibility for deadlock but allows for high parallelism.  Explain where your design falls along this continuum and why you chose to design it this way.*
 
 # 3. Memory Mapped Files
 
@@ -160,10 +160,10 @@
 
 ## ალგორითმები
 
-* Describe how memory mapped files integrate into your virtual memory subsystem.  Explain how the page fault and eviction processes differ between swap pages and other pages.
+* *Describe how memory mapped files integrate into your virtual memory subsystem.  Explain how the page fault and eviction processes differ between swap pages and other pages.*
 
-* Explain how you determine whether a new file mapping overlaps another segment, either at the time the mapping is created or later.
+* *Explain how you determine whether a new file mapping overlaps another segment, either at the time the mapping is created or later.*
 
 ## რატომ ავირჩიეთ ეს მიდგომა
 
-* Mappings created with "mmap" have similar semantics to those of data demand-paged from executables, except that "mmap" mappings are written back to their original files, not to swap.  This implies that much of their implementation can be shared.  Explain why your implementation either does or does not share much of the code for the two situations.
+* *Mappings created with "mmap" have similar semantics to those of data demand-paged from executables, except that "mmap" mappings are written back to their original files, not to swap.  This implies that much of their implementation can be shared.  Explain why your implementation either does or does not share much of the code for the two situations.*
