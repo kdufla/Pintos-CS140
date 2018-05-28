@@ -57,20 +57,20 @@
 
 ფუნქციები frame_table.c-ში:
 
-* void frame_table_init (void) - ~placeholder~
-* void *get_free_frame(struct hash *supl_pages) - ~placeholder~
-* void remove_frame(struct frame *frame) - ~placeholder~
-* bool alloc_page(struct supl_page *page, bool load) - ~placeholder~
-* static void eviction_algorithm(void) - ~placeholder~
-* bool alloc_page(struct supl_page *page, bool load) - ~placeholder~
-* static bool install_page_f (void *upage, void *kpage, bool writable) - ~placeholder~
-* static void evict(uint32_t *pd, struct frame *frame, void *vaddr) - ~placeholder~
+* `void frame_table_init (void)` - ~placeholder~
+* `void *get_free_frame(struct hash *supl_pages)` - ~placeholder~
+* `void remove_frame(struct frame *frame)` - ~placeholder~
+* `bool alloc_page(struct supl_page *page, bool load)` - ~placeholder~
+* `static void eviction_algorithm(void)` - ~placeholder~
+* `bool alloc_page(struct supl_page *page, bool load)` - ~placeholder~
+* `static bool install_page_f (void *upage, void *kpage, bool writable)` - ~placeholder~
+* `static void evict(uint32_t *pd, struct frame *frame, void *vaddr)` - ~placeholder~
 
 ფუნქციები page_table.c-ში:
 
-* void set_unalocated_page(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable, int mapid) - ~placeholder~
-* unsigned page_hash (const struct hash_elem *p_, void *aux) - ~placeholder~
-* bool page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux) - ~placeholder~
+* `void set_unalocated_page(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable, int mapid)` - ~placeholder~
+* `unsigned page_hash (const struct hash_elem *p_, void *aux)` - ~placeholder~
+* `bool page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux)` - ~placeholder~
 
 ## ალგორითმები
 
