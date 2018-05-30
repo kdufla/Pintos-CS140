@@ -20,6 +20,7 @@ void set_unalocated_page(struct file *file, off_t ofs, uint8_t *upage,
 	sp->writable = writable;
 	sp->mapid = mapid;
 	sp->swapid = -1;
+	sp->pagedir = th->pagedir;
 
 	hash_insert(&th->pages, &sp->hash_elem);
 

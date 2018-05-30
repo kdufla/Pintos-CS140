@@ -17,7 +17,7 @@ struct supl_page
 
     struct frame *frame;
 
-	// uint32_t *pagedir;
+	uint32_t *pagedir;
 	
 	struct file *file;
 	off_t ofs;
