@@ -16,67 +16,65 @@
 
 ### სტრუქტურები
 
-* `struct f_table` - ~placeholder~
-* `struct frame` - ~placeholder~
-* `struct supl_page` - ~placeholder~
+* `struct f_table` - ინახავს *frame table-ს* შესახებ ინფორმაციას.
+* `struct frame` - ინახავს ინფორმაციას თითოეული *frame-ს* შესახებ.
+* `struct supl_page` - სტრუქტურა რომელიც თითოეული *page-სთვის* ინახავს მისთვის საჭირო ინფორმაციას
 
 ### ცვლადები
 
-* `struct f_table frame_table` - ~placeholder~
+* `struct f_table frame_table` - მთლიანი *frame table*
 
 ცვლადები `struct f_table`-ში:
 
-* `struct list frame_ls` - ~placeholder~
-* `struct lock frame_lock` - ~placeholder~
-* `struct frame *frame_ls_array` - ~placeholder~
+* `struct list frame_ls` - *frame*-ების ლისტი გამოიყენება `eviction` დროს `fifo` იმპლემენტაციისთვის.
+* `struct lock frame_lock` - *frame table* ლოქი სინქრონიზაციისთვის.
+* `struct frame *frame_ls_array` - *frame*-ების მასივი.
 
 ცვლადები `struct frame`-ში:
 
-* `struct supl_page *page` - ~placeholder~
-* `struct list_elem ft_elem` - ~placeholder~
-* `bool in_use` - ~placeholder~
+* `struct supl_page *page` - *`supplementary page-ზე`* მიმთითებელი.
+* `struct list_elem ft_elem` - ლისტის ელემენტი.
+* `bool in_use` - გამოიყენება თუ არა ეს *`frame`*.
 
 ცვლადები `struct supl_page`-ში:
 
-* `struct hash_elem hash_elem` - ~placeholder~
-* `void *addr` - ~placeholder~
-* `struct frame *frame` - ~placeholder~
-* `struct file *file` - ~placeholder~
-* `off_t ofs` - ~placeholder~
-* `uint32_t read_bytes` - ~placeholder~
-* `uint32_t zero_bytes` - ~placeholder~
-* `bool writable` - ~placeholder~
-* `int swapid` - ~placeholder~
-* `int mapid` - ~placeholder~
+* `struct hash_elem hash_elem` - ჰეშ ლისტის ელემენტი.
+* `void *addr` - რეალური მისამართი.
+* `struct frame *frame` - შესაბამის *frame*-ზე მიმთითებელი.
+* `struct file *file` - ფაილზე მიმთითებელი იმ შემთხვევაში თუ ამ ფეიჯში უნდა ეწეროს რაიმე ფაილიდან.
+* `off_t ofs` - ~ ფაილის ოფსეტი.
+* `uint32_t read_bytes` - წაკითხული ბაიტების რაოდენობა.
+* `uint32_t zero_bytes` - ცარიელი ბაიტების რაოდენობა.
+* `bool writable` - შეუძლიათ თუ არა user პროცესებს ამ ფეიჯზე რამის ჩაწერა
+* `int swapid` - თუ გატანილია *`swap`*-ში იქაური იდენტიფიკატორი
+* `int mapid` - თუ დამეპილია რაიმე ფაილთან შესაბამისი იდენტიფიკატორი
 
 დამატებითი ცვლადი `struct thread`-ში:
 
-* `struct hash pages` - ~placeholder~
+* `struct hash pages` - ჰეშ ცხრილი *`supplementary page table`-ს* შესანახად
 
 ### ფუნქციები
 
 ფუნქციები frame_table.c-ში:
 
-* `void frame_table_init (void)` - ~placeholder~
-* `void *get_free_frame(struct hash *supl_pages)` - ~placeholder~
-* `void remove_frame(struct frame *frame)` - ~placeholder~
-* `bool alloc_page(struct supl_page *page, bool load)` - ~placeholder~
-* `static void eviction_algorithm(void)` - ~placeholder~
-* `bool alloc_page(struct supl_page *page, bool load)` - ~placeholder~
-* `static bool install_page_f (void *upage, void *kpage, bool writable)` - ~placeholder~
-* `static void evict(uint32_t *pd, struct frame *frame, void *vaddr)` - ~placeholder~
+* `void frame_table_init (void)` - *`frame table`-ს* ინიციალიზების ფუნქცია.
+* `void remove_frame(struct frame *frame)` - *`frame`-ს* გასუფთავების მეთოდი. *`frame`-ს* `in_use` ბულეანს აფოლსებს.
+* `bool alloc_page(struct supl_page *page, bool load)` - *`frame`-ს* შექმნის მეთოდი. *`palloc`-ით* იღებს ახალ მისამართს თუ ვერ გამოიყო ცდილობს `eviction`-ს ქმნის ახალ `frame`-ს და უვსებს არსებულ ველებს. თუ ჩასატვირთია ტვირთავს ფაილს და ამატებს ამ `frame`-ს პროცესში.
+* `static void eviction_algorithm(void)` - გასაძევებელი ფეიჯის პოვნა. იყენებს `second chance`-ს.
+* `static bool install_page_f (void *upage, void *kpage, bool writable)` - რეალური ფეიჯის `frame`-თან შესაბამება
+* `static void evict(uint32_t *pd, struct frame *frame, void *vaddr)` - უშუალოდ გამოძევება. იმ შემთხვევაში თუ ფეიჯი არის დამეპილი მაშინ აბრუნებს ამ ფეიჯს ფაილში და შემდეგ ასუფთავებს, ხოლო, თუ არის `swap`-ში გასატანი გააქვს ის ფეიჯები და შემდეგ ასუფთავებს
 
 ფუნქციები page_table.c-ში:
 
-* `void set_unalocated_page(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable, int mapid)` - ~placeholder~
-* `unsigned page_hash (const struct hash_elem *p_, void *aux)` - ~placeholder~
-* `bool page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux)` - ~placeholder~
+* `void set_unalocated_page(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable, int mapid)` - ცარიელი ფეიჯის გამომყოფი ფუნქცია. 
+* `unsigned page_hash (const struct hash_elem *p_, void *aux)` - აბრუნებს ფეიჯის შესაბამის ჰეშ მნიშვნელობას
+* `bool page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux)` - ფეიჯების შესადარებელი ფუნქცია 
 
 ## ალგორითმები
 
 * *suplemental page table*-ის ინფორმაციაზე წვდომა
 
-* ზარმაცი, ანუ მოთხოვნისას დაკმაყოფილებული მეხსიერების ალოკაცია
+* იუზერის მიერ მოთხოვნილი მეხსიერების ალოკაცია არ ხდება თავიდანვე არამედ მაშინ როდესაც იუზერი კონკრეტულ ფეიჯს მიმართა
 
 * ერთი *frame*-ის *dirty* და *accessed* ბიტების სინქრონიზება ვირტუალიზებულ ფეიჯებს შორის (კერნელისა და იუზერის ალიასის შემთხვევა)
 
