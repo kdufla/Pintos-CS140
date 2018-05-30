@@ -38,16 +38,16 @@
 
 ცვლადები `struct supl_page`-ში:
 
-* `struct hash_elem hash_elem` - ჰეშ ლისტის ელემენტი.
-* `void *addr` - რეალური მისამართი.
+* `struct hash_elem hash_elem` - ჰეშ თეიბლის ელემენტი.
+* `void *addr` - ფეიჯის ვირტუალური მისამართი.
 * `struct frame *frame` - შესაბამის *frame*-ზე მიმთითებელი.
-* `struct file *file` - ფაილზე მიმთითებელი იმ შემთხვევაში თუ ამ ფეიჯში უნდა ეწეროს რაიმე ფაილიდან.
+* `struct file *file` - ფაილზე მიმთითებელი იმ შემთხვევაში თუ ამ ფეიჯში უნდა ეწეროს რაიმე ფაილიდან  (default: NULL)
 * `off_t ofs` - ~ ფაილის ოფსეტი.
 * `uint32_t read_bytes` - წაკითხული ბაიტების რაოდენობა.
 * `uint32_t zero_bytes` - ცარიელი ბაიტების რაოდენობა.
 * `bool writable` - შეუძლიათ თუ არა user პროცესებს ამ ფეიჯზე რამის ჩაწერა
-* `int swapid` - თუ გატანილია *`swap`*-ში იქაური იდენტიფიკატორი
-* `int mapid` - თუ დამეპილია რაიმე ფაილთან შესაბამისი იდენტიფიკატორი
+* `int swapid` - თუ გატანილია *`swap`*-ში იქაური იდენტიფიკატორი (default: -1)
+* `int mapid` - თუ დამეპილია რაიმე ფაილთან შესაბამისი იდენტიფიკატორი (default: -1)
 
 დამატებითი ცვლადი `struct thread`-ში:
 
@@ -92,22 +92,22 @@
 
 ### სტრუქტურები
 
-* `struct swap_map` - ~placeholder~
+* `struct swap_map` - სვეფისთვის საჭირო ინფორმაცია
 
 ### ცვლადები
 
 ცვლადები `struct swap_map`-ში:
 
-* `struct lock lock` - ~placeholder~
-* `truct bitmap *map` - ~placeholder~
+* `struct lock lock` - ლოქი სინქრონიზაციისთვის
+* `truct bitmap *map` - ბიტმეპი თავისუფალი ბლოკების მენეჯმენტისთვის
 
 ### ფუნქციები
 
 ფუნქციები `swap.c`-ში:
 
-* `void swap_init(void)` - ~placeholder~
-* `block_sector_t write_in_swap(void *addr)` - ~placeholder~
-* `void read_from_swap(block_sector_t bs, void *addr)` - ~placeholder~
+* `void swap_init(void)` - ლოქის და ბიტმეპის შექმნა
+* `block_sector_t write_in_swap(void *addr)` - თავისუფალ `BLOCKS_IN_PAGE` ცალ ბლოკში წერს ფეიჯის კონტენტს
+* `void read_from_swap(block_sector_t bs, void *addr)` - სვეფიდან `BLOCKS_IN_PAGE` ბლოკიდან ამოაქვს დეითა მეხსიერებაში 
 
 ## ალგორითმები
 
@@ -119,17 +119,17 @@
 
 ## სინქრონიზაცია
 
-* *Explain the basics of your VM synchronization design.  In particular, explain how it prevents deadlock.  (Refer to the textbook for an explanation of the necessary conditions for deadlock.)*
+* დედლოქი ვერ მოხდება, რადგან ლოქებს ყოველთვის თანმიმდევრობით ვიღებ, შესაბამისად რეის ქონდიშენი გამორიცხულია
 
-* *A page fault in process P can cause another process Q's frame to be evicted.  How do you ensure that Q cannot access or modify the page during the eviction process?  How do you avoid a race between P evicting Q's frame and Q faulting the page back in?*
+* ერთი პროცესი როცა მეორეს ფრეიმს აძევებს ლოქს არ აბრუნებს, სანამ მოთხოვნილი ფრეიმი არ გამოეყოფა, შესაბამისად, მეორე ვერ მიასწრებს ფეიჯის აღდგენამდე
 
-* *Suppose a page fault in process P causes a page to be read from the file system or swap.  How do you ensure that a second process Q cannot interfere by e.g. attempting to evict the frame while it is still being read in?*
+* ლოუდის დროს პროცესის გაძევება შეუძლებელია, რადგან მასე გაძევება გამორთული აქვს
 
-* *Explain how you handle access to paged-out pages that occur during system calls.  Do you use page faults to bring in pages (as in user programs), or do you have a mechanism for "locking" frames into physical memory, or do you use some other design?  How do you gracefully handle attempted accesses to invalid virtual addresses?*
+* გაგდებულ ფეიჯებს ფოლტის დროს აღვადგენ, ხოლო არასწორი მისამართის მოთხოვნის შემთხვევაში პროცესი კვდება -1 სტატუსით
 
 ## რატომ ავირჩიეთ ეს მიდგომა
 
-* *A single lock for the whole VM system would make synchronization easy, but limit parallelism.  On the other hand, using many locks complicates synchronization and raises the possibility for deadlock but allows for high parallelism.  Explain where your design falls along this continuum and why you chose to design it this way.*
+* ერთი ლოქით ვლოქავთ ფრეიმ თეიბლზე წვდომას, როცა გაძევება ან ახალი ფრეიმის გამოყოფა მიმდინარეობს, ხოლო მეორეთ სვოფში ადგილის მოძებნას. მხოლოდ ორი ლოქი საქმეს ზედმეტად არ ართულებს და გაუთვალისწინებელი დედლოქებისგან გვიცავს და ასევე საკმარისი პარალელიზაციის საშუალებას გვაძლევს.
 
 # 3. Memory Mapped Files
 
