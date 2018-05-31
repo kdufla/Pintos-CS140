@@ -30,8 +30,16 @@ static void evict(uint32_t *pd, struct frame *frame, void *vaddr)
 	ASSERT (vaddr != NULL);
 
 	void *kpage = pagedir_get_page(pd, vaddr);
-	if(frame->page->mapid == -1)
+	if(frame->page->mapid == -1){
 		frame->page->swapid = write_in_swap(kpage);
+	}else{
+		struct mapel *m = thread_current()->maps;
+		struct file *f = m[frame->page->mapid].file;
+		if(pagedir_is_dirty(pd, vaddr)){
+				file_seek(f, frame->page->ofs);
+				file_write(f, vaddr, PGSIZE - frame->page->zero_bytes);
+		}
+	}
 	remove_frame(frame);
 	pagedir_clear_page(pd, vaddr);
 	palloc_free_page(kpage);
@@ -46,7 +54,7 @@ static void eviction_algorithm()
 	void *vaddr = frame->page->addr;
 	uint32_t *pd = frame->page->pagedir;
 
-	while (pagedir_is_accessed (frame->page->pagedir, frame->page->addr)) 
+	while (pagedir_is_accessed (frame->page->pagedir, frame->page->addr))
 			// || pagedir_is_accessed(frame->page->pagedir, pagedir_get_page(frame->page->pagedir, frame->page->addr)))
 	{
 		pagedir_set_accessed (frame->page->pagedir, frame->page->addr, false);

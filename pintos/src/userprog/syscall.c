@@ -18,6 +18,7 @@ static void syscall_handler(struct intr_frame *);
 static bool is_valid_address(void *p);
 static bool is_valid_address_p(void *p);
 struct lock filesys_lock;
+struct lock mmap_lock;
 
 int practice(int i);
 static void halt(void);
@@ -41,6 +42,7 @@ void munmap(mapid_t);
 void syscall_init(void)
 {
 	lock_init(&filesys_lock);
+	lock_init(&mmap_lock);
 	intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
@@ -306,10 +308,14 @@ mapid_t mmap(int fd, void *addr)
 		return -1;
 	}
 
+	lock_acquire(&filesys_lock);
+	// lock_acquire(&mmap_lock);
 
 	struct file *file = th->descls[fd - 2];
 	if (file == NULL)
 	{
+		// lock_release(&mmap_lock);
+		lock_release(&filesys_lock);
 		return -1;
 	}
 	file = file_reopen(file);
@@ -321,6 +327,8 @@ mapid_t mmap(int fd, void *addr)
 
 	if(addr + size_bytes >= pg_round_down(th->stack)){
 		file_close(file);
+		// lock_release(&mmap_lock);
+		lock_release(&filesys_lock);
 		return -1;
 	}
 	// size_pages = (size_bytes / PGSIZE + size_bytes % PGSIZE == 0 ? 0 : 1) << 12;
@@ -329,11 +337,16 @@ mapid_t mmap(int fd, void *addr)
 	last = (char*)first + size_bytes / PGSIZE * PGSIZE;
 
 	if(!is_valid_address_p((void *) first) || !is_valid_address_p((void *) last)){
+		// lock_release(&mmap_lock);
+		lock_release(&filesys_lock);
 		exit(-1);
 	}
 
+
 	if (is_overlap(th->maps, first, last))
 	{
+		// lock_release(&mmap_lock);
+		lock_release(&filesys_lock);
 		return -1;
 	}
 
@@ -358,16 +371,22 @@ mapid_t mmap(int fd, void *addr)
 				ofs += page_read_bytes;
     		}
 
+			// lock_release(&mmap_lock);
+			lock_release(&filesys_lock);
 			return i;
 		}
 	}
 
+	// lock_release(&mmap_lock);
+	lock_release(&filesys_lock);
 	return -1;
 }
 
 void munmap(mapid_t id){
 	struct mapel *m = thread_current()->maps;
 
+	lock_acquire(&filesys_lock);
+	// lock_acquire(&mmap_lock);
 	struct file *f = m[id].file;
 
 	if(f == NULL){
@@ -406,6 +425,8 @@ void munmap(mapid_t id){
 		}
 	}
 
+	// lock_release(&mmap_lock);
+	lock_release(&filesys_lock);
 	file_close(f);	
 
 }
