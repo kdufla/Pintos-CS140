@@ -163,10 +163,8 @@
 
 * იმის გასარკვევად კვეთს თუ არა დამეპილი ფაილი სხვა სეგმენტებს 
 
-
-
-*Explain how you determine whether a new file mapping overlaps another segment, either at the time the mapping is created or later.*
+* დამეპვამდე მოწმდება ფაილის პირველი და ბოლო ფეიჯის მისამართები მეხსიერებაში. შემდეგ გადავუყვებით ყველა სხვა დამეპილი ფაილის იგივე მისამართებს და ვრწმუნდებით, რომ ოვერლეფი არ მოხდება. გამოთვლილი ზღვრები ნაკადში ინახება.
 
 ## რატომ ავირჩიეთ ეს მიდგომა
 
-* *Mappings created with "mmap" have similar semantics to those of data demand-paged from executables, except that "mmap" mappings are written back to their original files, not to swap.  This implies that much of their implementation can be shared.  Explain why your implementation either does or does not share much of the code for the two situations.*
+* ჩვეულებრივ ლოუდს დავუმატეთ `mapid` -1, რამაც საშუალება მოგვცა, რომ დამეპვა ლოუდისგან არ განსხვავდებოდეს და ზუსტად იგივე კოდს იყენებდეს პატარა მოსამზადებელი კოდის გამოკლებით.
