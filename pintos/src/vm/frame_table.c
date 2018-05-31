@@ -30,7 +30,8 @@ static void evict(uint32_t *pd, struct frame *frame, void *vaddr)
 	ASSERT (vaddr != NULL);
 
 	void *kpage = pagedir_get_page(pd, vaddr);
-	frame->page->swapid = write_in_swap(kpage);
+	if(frame->page->mapid == -1)
+		frame->page->swapid = write_in_swap(kpage);
 	remove_frame(frame);
 	pagedir_clear_page(pd, vaddr);
 	palloc_free_page(kpage);
