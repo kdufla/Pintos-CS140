@@ -54,7 +54,7 @@ static void eviction_algorithm()
 	void *vaddr = frame->page->addr;
 	uint32_t *pd = frame->page->pagedir;
 
-	while (pagedir_is_accessed (frame->page->pagedir, frame->page->addr))
+	while (pagedir_is_accessed (frame->page->pagedir, frame->page->addr) || frame->pined)
 			// || pagedir_is_accessed(frame->page->pagedir, pagedir_get_page(frame->page->pagedir, frame->page->addr)))
 	{
 		pagedir_set_accessed (frame->page->pagedir, frame->page->addr, false);
@@ -103,6 +103,7 @@ bool alloc_page(struct supl_page *page, bool load)
 			frame = &frame_table.frame_ls_array[i];
 			frame->in_use = true;
 			frame->page = page;
+			frame->pined = false;
 			list_push_back(&frame_table.frame_ls, &frame->ft_elem);
 			break;
 		}
@@ -115,11 +116,13 @@ bool alloc_page(struct supl_page *page, bool load)
 	/* Load this page. */
 	if (load)
 	{
+		frame->pined = true;
 		file_seek (page->file, page->ofs);
 		if (file_read(page->file, kpage, page->read_bytes) != (int)page->read_bytes)
 		{
 			palloc_free_page(kpage);
 			lock_release(&frame_table.frame_lock);
+			frame->pined = false;
 			return false;
 		}
 		memset(kpage + page->read_bytes, 0, page->zero_bytes);
@@ -132,6 +135,7 @@ bool alloc_page(struct supl_page *page, bool load)
 	{
 		palloc_free_page(kpage);
 		lock_release(&frame_table.frame_lock);
+		frame->pined = false;
 		return false;
 	}
 
@@ -145,6 +149,7 @@ bool alloc_page(struct supl_page *page, bool load)
 		page->swapid = -1;
 	}
 	lock_release(&frame_table.frame_lock);
+	frame->pined = false;
 	return true;
 }
 

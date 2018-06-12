@@ -33,6 +33,7 @@ struct frame
 	struct supl_page *page;
 	struct list_elem ft_elem;
 	bool in_use;
+	bool pined;
 };
 
 void frame_table_init (void);
