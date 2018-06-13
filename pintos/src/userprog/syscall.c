@@ -6,6 +6,7 @@
 #include "threads/thread.h"
 #include "threads/synch.h"
 #include "threads/palloc.h"
+#include "threads/malloc.h"
 #include "../devices/shutdown.h"
 #include "process.h"
 #include "pagedir.h"
@@ -274,14 +275,42 @@ void close(int fd)
 	lock_release(&filesys_lock);
 }
 
-bool chdir(const char *dir UNUSED)
-{
-	struct thread *th = thread_current ();
-	if (path_is_absolute(dir))
-	{
-		strlcpy (th->curdir, dir, sizeof th->curdir);
-	}
-	return false;
+bool chdir(const char *dir){
+    struct thread *th = thread_current ();
+    
+    char *path = malloc (strlen(th->curdir)+strlen(dir));
+    strlcpy(path, th->curdir, sizeof path);
+
+    if (path_is_absolute(dir))
+    	strlcpy(path, dir, sizeof path);
+    else
+    	strlcat (path, dir, sizeof path);
+
+    if (path[strlen(path)-1] != '/')
+    	strlcat(path, "/", sizeof path);
+
+    int index = 0;
+    while (path[index] != '\0'){
+    	if (strlen(path) > index + 3 && strncmp(path + index, "/../", 4) == 0){
+    		if (index == 0){
+				strlcpy(path, path + 3, sizeof path);
+    		} else {
+    			path[index] = '\0';
+    			char * b = strrchr(path, '/');
+    			strlcpy(b, path + index + 3, sizeof path);
+    			index = b - path;
+    		}
+		} else if (strlen(path) > index + 2 && strncmp(path + index, "/./", 3) == 0){
+			strlcpy(path + index, path + index + 2, sizeof path);
+		} else {
+			index++;
+		}
+    }
+
+    strlcpy (th->curdir, path, sizeof th->curdir); 
+
+    free (path);
+    return true;
 }
 
 bool mkdir(const char *dir)
