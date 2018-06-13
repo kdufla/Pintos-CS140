@@ -77,7 +77,7 @@ static void kernel_thread (thread_func *, void *aux);
 static void idle (void *aux UNUSED);
 static struct thread *running_thread (void);
 static struct thread *next_thread_to_run (void);
-static void init_thread (struct thread *, const char *name, int priority, fixed_point_t recent_cpu, int nice);
+static void init_thread (struct thread *, const char *name, int priority, fixed_point_t recent_cpu, int nice, const char *curdir);
 static bool is_thread (struct thread *) UNUSED;
 static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
@@ -119,7 +119,7 @@ thread_init (void)
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
-  init_thread (initial_thread, "main", PRI_DEFAULT, fix_int (0), 0);
+  init_thread (initial_thread, "main", PRI_DEFAULT, fix_int (0), 0, "/");
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
 }
@@ -224,7 +224,7 @@ thread_create (const char *name, int priority,
     return TID_ERROR;
 
   /* Initialize thread. */
-  init_thread (t, name, priority, thread_current ()->recent_cpu, thread_current ()->nice);
+  init_thread (t, name, priority, thread_current ()->recent_cpu, thread_current ()->nice, thread_current ()->curdir);
   tid = t->tid = allocate_tid ();
 #ifdef USERPROG
   t->info->tid = tid;
@@ -611,7 +611,7 @@ is_thread (struct thread *t)
 /* Does basic initialization of T as a blocked thread named
    NAME. */
 static void
-init_thread (struct thread *t, const char *name, int priority, fixed_point_t recent_cpu, int nice)
+init_thread (struct thread *t, const char *name, int priority, fixed_point_t recent_cpu, int nice, const char *curdir)
 {
   enum intr_level old_level;
 
@@ -634,6 +634,8 @@ init_thread (struct thread *t, const char *name, int priority, fixed_point_t rec
   t->actual_priority = priority;
   t->magic = THREAD_MAGIC;
   list_init(&t->locks);
+
+  strlcpy (t->curdir, curdir, sizeof t->curdir);
 
 #ifdef USERPROG
   /* For userprogs */

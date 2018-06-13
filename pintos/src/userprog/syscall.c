@@ -1,5 +1,6 @@
 #include "userprog/syscall.h"
 #include <stdio.h>
+#include <string.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
@@ -31,6 +32,13 @@ int write(int fd, const void *buffer, unsigned size);
 void seek(int fd, unsigned position);
 unsigned tell(int fd);
 void close(int fd);
+bool chdir (const char *dir);
+bool mkdir (const char *dir);
+bool readdir (int fd, char *name);
+bool isdir (int fd);
+int inumber (int fd);
+
+static bool path_is_absolute(const char *path);
 
 void syscall_init(void)
 {
@@ -77,7 +85,7 @@ bool create(const char *file, unsigned initial_size)
 {
 	bool result;
 	lock_acquire(&filesys_lock);
-	result = filesys_create(file, initial_size);
+	result = filesys_create(file, initial_size, false);
 	lock_release(&filesys_lock);
 	return result;
 }
@@ -266,6 +274,48 @@ void close(int fd)
 	lock_release(&filesys_lock);
 }
 
+bool chdir(const char *dir UNUSED)
+{
+	struct thread *th = thread_current ();
+	if (path_is_absolute(dir))
+	{
+		strlcpy (th->curdir, dir, sizeof th->curdir);
+	}
+	return false;
+}
+
+bool mkdir(const char *dir)
+{
+	bool result;
+	lock_acquire(&filesys_lock);
+
+	int initial_size = 120; /* Droebith */
+
+	result = filesys_create(dir, initial_size, true);
+	lock_release(&filesys_lock);
+	return result;
+}
+
+bool readdir(int fd UNUSED, char *name UNUSED)
+{
+	return false;
+}
+
+bool isdir(int fd UNUSED)
+{
+	return false;
+}
+
+int inumber(int fd UNUSED)
+{
+	return -1;
+}
+
+static bool path_is_absolute(const char *path)
+{
+	return path[0] == '/';
+}
+
 /* check if pointer address is valid */
 static bool is_valid_address(void *p)
 {
@@ -377,6 +427,21 @@ syscall_handler(struct intr_frame *f UNUSED)
 		break;
 	case SYS_PRACTICE:
 		rv = practice(GET_ARG_INT(1));
+		break;
+	case SYS_CHDIR:
+		rv = (uint32_t)chdir(GET_ARG_POINTER(1, NO_LEN));
+		break;
+	case SYS_MKDIR:
+		rv = (uint32_t)mkdir(GET_ARG_POINTER(1, NO_LEN));
+		break;
+	case SYS_READDIR:
+		rv = (uint32_t)readdir(GET_ARG_INT(1), GET_ARG_POINTER(2, NO_LEN));
+		break;
+	case SYS_ISDIR:
+		rv = (uint32_t)isdir(GET_ARG_INT(1));
+		break;
+	case SYS_INUMBER:
+		rv = (uint32_t)inumber(GET_ARG_INT(1));
 		break;
 	default:
 		exit(-1);
