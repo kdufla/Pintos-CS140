@@ -200,7 +200,7 @@ void fill_direct_sectors(int sectors,char *zeros, struct inode_disk *disk_inode,
   int i;
   for(i = 0; i < sectors; i++)
   {
-      block_write (fs_device, addrs[i], zeros);
+      // block_write (fs_device, addrs[i], zeros);
       disk_inode->direct[i] = addrs[i];
   }
 }
@@ -210,7 +210,7 @@ void fill_indirect_sectors(int sectors, char *zeros, int curr, struct block_with
   int i;
   for(i = 0; i < sectors; i++)
   {
-      block_write (fs_device, addrs[i + curr], zeros);
+      // block_write (fs_device, addrs[i + curr], zeros);
       sd->sectors[i] = addrs[i + curr];
   }
 }
