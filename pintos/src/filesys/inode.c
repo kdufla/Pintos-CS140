@@ -11,6 +11,17 @@
 #define INODE_MAGIC 0x494e4f44
 
 #define DIRECT_BLOCKS 124
+#define ADDS_IN_BLOCK (BLOCK_SECTOR_SIZE / sizeof(block_sector_t))
+
+#define number_of_directs(sec) (sec > DIRECT_BLOCKS ? DIRECT_BLOCKS : sec)
+#define realsinds(sec) (sec > ADDS_IN_BLOCK ? ADDS_IN_BLOCK : sec)
+#define number_of_block_with_arrays(sec) (number_of_directs(sec) == DIRECT_BLOCKS ? realsinds(sec - DIRECT_BLOCKS) : 0)
+#define realdinds(sec) (sec - ADDS_IN_BLOCK - DIRECT_BLOCKS)
+#define number_of_dindirects(sec) (number_of_block_with_arrays(sec) == ADDS_IN_BLOCK ? realdinds(sec) : 0)
+#define number_of_dindirect_blocks(sec) (number_of_dindirects(sec) / ADDS_IN_BLOCK + number_of_dindirects(sec) % ADDS_IN_BLOCK > 0 ? 1 : 0)
+#define number_till_end(sec, i) ((number_of_dindirects(sec) - i * ADDS_IN_BLOCK) >= ADDS_IN_BLOCK ? ADDS_IN_BLOCK : (number_of_dindirects(sec) - i * ADDS_IN_BLOCK))
+#define DOUBLY_IDX(sec) (realdinds(sec) / ADDS_IN_BLOCK)
+#define MIN(a, b) (a > b ? b : a)
 
 /* On-disk inode.
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
@@ -23,17 +34,15 @@ struct inode_disk
     unsigned magic;                       /* Magic number. */
   };
 
-struct sindirect {
-  block_sector_t sectors[128];
+struct block_with_array {
+  block_sector_t sectors[ADDS_IN_BLOCK];
 };
 
 
-void release_direct_sectors(struct inode_disk *disk_inode, int i);
-void release_indirect_sectors(struct sindirect *sd, int i);
-bool fill_direct_sectors(int *sectors,char *zeros, struct inode_disk *disk_inode);
-bool fill_indirect_sectors(int *sectors,char *zeros, struct sindirect *sd);
-bool indirect_single(int *sectors, char *zeros, struct sindirect *sin, struct inode_disk *disk_inode);
-bool indirect_double(int *sectors, char *zeros, struct sindirect *sin, struct sindirect *din, struct sindirect *sins_in, struct inode_disk *disk_inode);
+block_sector_t *get_memory_on_disk(size_t sectors);
+void fill_direct_sectors(int sectors,char *zeros, struct inode_disk *disk_inode, block_sector_t *addrs);
+void fill_indirect_sectors(int sectors, char *zeros, int curr, struct block_with_array *sd, block_sector_t *addrs);
+void release_inode_mem(struct inode_disk *id);
 
 
 /* Returns the number of sectors to allocate for an inode SIZE
@@ -60,11 +69,38 @@ struct inode
    Returns -1 if INODE does not contain data for a byte at offset
    POS. */
 static block_sector_t
-byte_to_sector (const struct inode *inode, off_t pos)
+byte_to_sector (struct inode *inode, off_t pos)
 {
   ASSERT (inode != NULL);
   if (pos < inode->data.length)
-    return inode->data.start + pos / BLOCK_SECTOR_SIZE;
+  {
+    size_t sec = pos /  BLOCK_SECTOR_SIZE;
+    struct inode_disk *id = &inode->data;
+
+    if(sec <= DIRECT_BLOCKS)
+    {
+      return id->direct[sec];
+    }
+
+    if(sec <= DIRECT_BLOCKS + ADDS_IN_BLOCK)
+    {
+      struct block_with_array *sd = malloc(sizeof(struct block_with_array));
+      block_read (fs_device, id->single, sd);
+
+      block_sector_t bs = sd->sectors[sec - DIRECT_BLOCKS];
+
+      free(sd);
+      return bs;
+    }
+
+    struct block_with_array *sd = malloc(sizeof(struct block_with_array));
+    block_read (fs_device, id->doubly, sd);
+
+    block_sector_t bs = sd->sectors[DOUBLY_IDX(sec)];
+    block_read (fs_device, bs, sd);
+
+    return sd->sectors[realdinds(sec) % ADDS_IN_BLOCK];
+  }
   else
     return -1;
 }
@@ -80,133 +116,58 @@ inode_init (void)
   list_init (&open_inodes);
 }
 
-void release_direct_sectors(struct inode_disk *disk_inode, int i)
+
+block_sector_t *get_memory_on_disk(size_t sectors)
 {
-  int m;
+  size_t len, i, j;
 
-  for(m = 0; m < i; m++)
+  len = sectors + (sectors / (BLOCK_SECTOR_SIZE / 4))
+        + ((sectors % (BLOCK_SECTOR_SIZE / 4)) > 0 ? 1 : 0)
+        + (sectors > DIRECT_BLOCKS ? 1 : 0)
+        + (sectors > DIRECT_BLOCKS + BLOCK_SECTOR_SIZE / 4 ? 1 :0);
+
+
+  block_sector_t *addrs = malloc(sizeof(block_sector_t) * len), baddr;
+  
+  for(i = 0; i < len; i++)
   {
-    free_map_release(disk_inode->direct[m], 1);
-  } 
-}
-
-void release_indirect_sectors(struct sindirect *sd, int i)
-{
-  int m;
-
-  for(m = 0; m < i; m++)
-  {
-    free_map_release(sd->sectors[m], 1);
-  } 
-}
-
-bool fill_direct_sectors(int *sectors,char *zeros, struct inode_disk *disk_inode)
-{
-  int i;
-  block_sector_t baddr;
-  for(i = 0; i < DIRECT_BLOCKS; i++, (*sectors)--)
-  {
-    if (free_map_allocate (1, &baddr))
+    if(free_map_allocate (1, &baddr))
     {
-      if(*sectors <= 0)
-        break;
-      block_write (fs_device, baddr, zeros);
-      disk_inode->direct[i] = baddr;
+      addrs[i] = baddr;
     }else{
-      release_direct_sectors(disk_inode, i);
-      return false;      
-    }
-  }
-  return true;
-}
-
-bool fill_indirect_sectors(int *sectors, char *zeros, struct sindirect *sd)
-{
-  int i;
-  block_sector_t baddr;
-  for(i = 0; i < BLOCK_SECTOR_SIZE / 4; i++, (*sectors)--)
-  {
-    if (free_map_allocate (1, &baddr))
-    {
-      if(*sectors <= 0)
-        break;
-      block_write (fs_device, baddr, zeros);
-      sd->sectors[i] = baddr;
-    }else{
-      release_indirect_sectors(sd, i);
-      return false;      
-    }
-  }
-
-  return true;
-}
-
-bool indirect_single(int *sectors, char *zeros, struct sindirect *sin, struct inode_disk *disk_inode)
-{
-  block_sector_t baddr;
-
-  if(fill_indirect_sectors(sectors, zeros, sin) && free_map_allocate (1, &baddr))
-  {
-    block_write (fs_device, baddr, sin);            
-    disk_inode->single = baddr;
-  }else{
-    release_direct_sectors(disk_inode, DIRECT_BLOCKS);
-
-    free(sin);
-    free (disk_inode);
-    return false;
-  }
-
-  return true;
-}
-
-bool indirect_double(int *sectors, char *zeros, struct sindirect *sin, struct sindirect *din, struct sindirect *sins_in, struct inode_disk *disk_inode )
-{
-  block_sector_t baddr;
-  int i, ii;
-
-  for(i = 0; i < BLOCK_SECTOR_SIZE / 4; i++)
-  {
-    if(*sectors <= 0)
-      break;
-
-    if(fill_indirect_sectors(sectors, zeros, &sins_in[i]) && free_map_allocate(1, &baddr))
-    {
-      block_write (fs_device, baddr, &sins_in[i]);
-      din->sectors[i] = baddr;
-    }else{
-      release_direct_sectors(disk_inode, DIRECT_BLOCKS);
-      release_indirect_sectors(sin, BLOCK_SECTOR_SIZE / 4);
-      for(ii = 0; ii < i; ii++)
+      for(j = 0; j < i; j++)
       {
-        release_indirect_sectors(&sins_in[ii], BLOCK_SECTOR_SIZE / 4);                
+        free_map_release(addrs[j], 1);
       }
-      
-      free(sin);
-      free(sins_in);
-      free (disk_inode);
-      return false;
+      free(addrs);
+      return NULL;
     }
   }
 
-  if(free_map_allocate (1, &baddr)))
+  return addrs;
+}
+
+
+void fill_direct_sectors(int sectors,char *zeros, struct inode_disk *disk_inode, block_sector_t *addrs)
+{
+  int i;
+  for(i = 0; i < sectors; i++)
   {
-    block_write (fs_device, baddr, sin);            
-    disk_inode->doubly = baddr;
-  }else{
-    release_direct_sectors(disk_inode, DIRECT_BLOCKS);
-    release_indirect_sectors(sin, BLOCK_SECTOR_SIZE / 4);
-    for(ii = 0; ii < i; ii++)
-    {
-      release_indirect_sectors(&sins_in[ii], BLOCK_SECTOR_SIZE / 4);                
-    }
-    
-    free(sin);
-    free(sins_in);
-    free (disk_inode);
-    return false;
+      block_write (fs_device, addrs[i], zeros);
+      disk_inode->direct[i] = addrs[i];
   }
 }
+
+void fill_indirect_sectors(int sectors, char *zeros, int curr, struct block_with_array *sd, block_sector_t *addrs)
+{
+  int i;
+  for(i = 0; i < sectors; i++)
+  {
+      block_write (fs_device, addrs[i + curr], zeros);
+      sd->sectors[i] = addrs[i + curr];
+  }
+}
+
 
 /* Initializes an inode with LENGTH bytes of data and
    writes the new inode to sector SECTOR on the file system
@@ -227,45 +188,85 @@ inode_create (block_sector_t sector, off_t length)
   disk_inode = calloc (1, sizeof *disk_inode);
   if (disk_inode != NULL)
     {
-      size_t sectors = bytes_to_sectors (length);
+      size_t sectors = bytes_to_sectors (length), curr_count = 0, count = 0, i;
       static char zeros[BLOCK_SECTOR_SIZE];
-      block_sector_t baddr;
       disk_inode->length = length;
       disk_inode->magic = INODE_MAGIC;
 
-      struct sindirect *sin = malloc(sizeof(struct sindirect));
-      struct sindirect *din = calloc(1, sizeof(struct sindirect));
-      struct sindirect *sins_in = calloc(BLOCK_SECTOR_SIZE / 4, sizeof(struct sindirect));
+      if(length == 0){
+        block_write (fs_device, sector, disk_inode);
+        free(disk_inode);
+        return true;
+      }
 
-      if(!fill_direct_sectors(&sectors, zeros, disk_inode))
+      block_sector_t *addrs = get_memory_on_disk(sectors);
+
+      if(!addrs)
       {
-        free (disk_inode);
-        free(sin);
-        free(din);
-        free(sins_in);
+        free(disk_inode);
         return false;
       }
 
-      if(!indirect_single(&sectors, zeros, sin, disk_inode))
+
+      fill_direct_sectors(number_of_directs(sectors), zeros, disk_inode, addrs);
+      curr_count += number_of_directs(sectors);
+      count += number_of_directs(sectors);
+
+      if(count >= sectors)
       {
-        free (disk_inode);
-        free(sin);
-        free(din);
-        free(sins_in);
-        return false;
+        block_write (fs_device, sector, disk_inode);
+        free(addrs);
+        free(disk_inode);
+        return true;
       }
 
-      if(!indirect_double(&sectors, zeros, sin, din, sins_in, disk_inode))
+      struct block_with_array *sd = malloc(512);
+
+      fill_indirect_sectors(number_of_block_with_arrays(sectors), zeros, curr_count, sd, addrs);
+      curr_count += number_of_block_with_arrays(sectors);
+      count += number_of_block_with_arrays(sectors);
+
+      block_write (fs_device, addrs[curr_count], sd);
+      disk_inode->single = addrs[curr_count++];
+
+      if(count >= sectors)
       {
-        free (disk_inode);
-        free(sin);
-        free(din);
-        free(sins_in);
-        return false;
+        block_write (fs_device, sector, disk_inode);
+        free(addrs);
+        free(disk_inode);
+        free(sd);
+        return true;
       }
 
+      struct block_with_array *ssd = malloc(512);
+      memset(sd, 0, 512);
+      
+      for(i = 0; i < number_of_dindirect_blocks(sectors); i++)
+      {
+        size_t b = number_till_end(sectors, i);
+        memset(ssd, 0, 512);
+
+        fill_indirect_sectors(b, zeros, curr_count, ssd, addrs);
+        curr_count += b;
+        count += b;
+        
+        block_write (fs_device, addrs[curr_count], ssd);
+        sd->sectors[i] = addrs[curr_count++];
+      }
+
+      block_write (fs_device, addrs[curr_count], sd);
+      disk_inode->doubly = addrs[curr_count++];
+      
       block_write (fs_device, sector, disk_inode);
+
+      free(addrs);
+      free(disk_inode);
+      free(sd);
+      free(ssd);
+      return true;
     }
+
+    return false;
 }
 
 
@@ -321,6 +322,51 @@ inode_get_inumber (const struct inode *inode)
   return inode->sector;
 }
 
+void release_inode_mem(struct inode_disk *id)
+{
+  size_t i, j, n, b, sec = bytes_to_sectors(id->length);
+
+  n = MIN(sec, DIRECT_BLOCKS);
+  for(i = 0; i < n; i++)
+  {
+    free_map_release(id->direct[i], 1);
+  }
+
+  if(sec > DIRECT_BLOCKS)
+  {
+    struct block_with_array *sd = malloc(sizeof(struct block_with_array));
+    block_read (fs_device, id->single, sd);
+
+    n = MIN(sec - n, ADDS_IN_BLOCK);
+    for( i = 0; i < n; i++)
+    {
+      free_map_release(sd->sectors[i], 1);
+    }
+    
+    if(sec > DIRECT_BLOCKS + ADDS_IN_BLOCK)
+    {
+      block_read (fs_device, id->doubly, sd);
+      struct block_with_array *ssd = malloc(sizeof(struct block_with_array));
+      
+      n = number_of_dindirect_blocks(sec);
+      for(i = 0; i < n; i++)
+      {
+        block_read (fs_device, sd->sectors[i], ssd);
+
+        b = number_till_end(sec, i);
+        for( j = 0; j < b; j++)
+        {
+          free_map_release(ssd->sectors[j], 1);
+        }
+      }
+
+      free(ssd);
+    }
+
+    free(sd);
+  }
+}
+
 /* Closes INODE and writes it to disk.
    If this was the last reference to INODE, frees its memory.
    If INODE was also a removed inode, frees its blocks. */
@@ -341,8 +387,7 @@ inode_close (struct inode *inode)
       if (inode->removed)
         {
           free_map_release (inode->sector, 1);
-          free_map_release (inode->data.start,
-                            bytes_to_sectors (inode->data.length));
+          release_inode_mem(&inode->data);
         }
 
       free (inode);
