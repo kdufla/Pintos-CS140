@@ -22,6 +22,7 @@
 #define number_till_end(sec, i) ((number_of_dindirects(sec) - i * ADDS_IN_BLOCK) >= ADDS_IN_BLOCK ? ADDS_IN_BLOCK : (number_of_dindirects(sec) - i * ADDS_IN_BLOCK))
 #define DOUBLY_IDX(sec) (realdinds(sec) / ADDS_IN_BLOCK)
 #define MIN(a, b) (a > b ? b : a)
+#define blocks_needed(sectors) (sectors + (sectors > DIRECT_BLOCKS ? 1 : 0) + (sectors > DIRECT_BLOCKS + BLOCK_SECTOR_SIZE / 4 ? 1 + DIV_ROUND_UP((sectors - DIRECT_BLOCKS - BLOCK_SECTOR_SIZE / 4), (BLOCK_SECTOR_SIZE / 4)) : 0))
 
 /* On-disk inode.
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
@@ -44,6 +45,7 @@ void fill_direct_sectors(int sectors,char *zeros, struct inode_disk *disk_inode,
 void fill_indirect_sectors(int sectors, char *zeros, int curr, struct block_with_array *sd, block_sector_t *addrs);
 void release_inode_mem(struct inode_disk *id);
 
+void fill_gap(struct inode_disk *id, size_t off);
 
 /* Returns the number of sectors to allocate for an inode SIZE
    bytes long. */
@@ -77,12 +79,12 @@ byte_to_sector (struct inode *inode, off_t pos)
     size_t sec = pos /  BLOCK_SECTOR_SIZE;
     struct inode_disk *id = &inode->data;
 
-    if(sec <= DIRECT_BLOCKS)
+    if(sec < DIRECT_BLOCKS)
     {
       return id->direct[sec];
     }
 
-    if(sec <= DIRECT_BLOCKS + ADDS_IN_BLOCK)
+    if(sec < DIRECT_BLOCKS + ADDS_IN_BLOCK)
     {
       struct block_with_array *sd = malloc(sizeof(struct block_with_array));
       block_read (fs_device, id->single, sd);
@@ -105,6 +107,57 @@ byte_to_sector (struct inode *inode, off_t pos)
     return -1;
 }
 
+static block_sector_t
+byte_too_sector (struct inode *inode, off_t pos)
+{
+  ASSERT (inode != NULL);
+  if (pos < inode->data.length)
+  {
+    return byte_to_sector(inode, pos);
+  }
+  else
+  {
+    size_t sec = pos /  BLOCK_SECTOR_SIZE;
+    struct inode_disk *id = &inode->data;
+    block_sector_t baddr;
+
+    if(sec < DIRECT_BLOCKS)
+    {
+      free_map_allocate (1, &baddr);
+      id->direct[sec] = baddr;
+      block_write(fs_device, inode->sector, id);
+      return baddr;
+    }
+
+    if(sec < DIRECT_BLOCKS + ADDS_IN_BLOCK)
+    {
+      struct block_with_array *sd = malloc(sizeof(struct block_with_array));
+      block_read (fs_device, id->single, sd);
+
+      free_map_allocate (1, &baddr);
+      sd->sectors[sec - DIRECT_BLOCKS] = baddr;
+
+      block_write(fs_device, id->single, sd);
+
+      free(sd);
+      return baddr;
+    }
+
+    struct block_with_array *sd = malloc(sizeof(struct block_with_array));
+    block_read (fs_device, id->doubly, sd);
+
+    block_sector_t bs = sd->sectors[DOUBLY_IDX(sec)];
+    block_read (fs_device, bs, sd);
+
+    free_map_allocate (1, &baddr);
+    sd->sectors[realdinds(sec) % ADDS_IN_BLOCK] = baddr;
+
+    free(sd);
+    return baddr;
+  }
+}
+
+
 /* List of open inodes, so that opening a single inode twice
    returns the same `struct inode'. */
 static struct list open_inodes;
@@ -117,15 +170,9 @@ inode_init (void)
 }
 
 
-block_sector_t *get_memory_on_disk(size_t sectors)
+block_sector_t *get_memory_on_disk(size_t len)
 {
-  size_t len, i, j;
-
-  len = sectors + (sectors / (BLOCK_SECTOR_SIZE / 4))
-        + ((sectors % (BLOCK_SECTOR_SIZE / 4)) > 0 ? 1 : 0)
-        + (sectors > DIRECT_BLOCKS ? 1 : 0)
-        + (sectors > DIRECT_BLOCKS + BLOCK_SECTOR_SIZE / 4 ? 1 :0);
-
+  size_t i, j;
 
   block_sector_t *addrs = malloc(sizeof(block_sector_t) * len), baddr;
   
@@ -168,6 +215,97 @@ void fill_indirect_sectors(int sectors, char *zeros, int curr, struct block_with
   }
 }
 
+void fill_gap(struct inode_disk *id, size_t off)
+{
+  size_t lsec = id->length /  BLOCK_SECTOR_SIZE, osec = off /  BLOCK_SECTOR_SIZE, i, j, count = 0;
+  
+  if(lsec >= osec){
+    return;
+  }
+  static char zeros[BLOCK_SECTOR_SIZE];
+  memset(zeros, 0, BLOCK_SECTOR_SIZE);
+  block_sector_t *addrs = get_memory_on_disk(blocks_needed(bytes_to_sectors(id->length)) - blocks_needed(bytes_to_sectors(off)));
+  
+  while(lsec < DIRECT_BLOCKS && lsec < osec)
+  {
+    id->direct[lsec++] = addrs[count];
+    block_write (fs_device, addrs[count++], zeros);
+  }
+
+  if(lsec < osec)
+  {
+    struct block_with_array *sd = calloc(1, sizeof(struct block_with_array));
+
+    if(lsec < DIRECT_BLOCKS + ADDS_IN_BLOCK)
+    {
+      bool new_single = lsec == DIRECT_BLOCKS;
+      if(!new_single)
+      {
+        block_read (fs_device, id->single, sd);
+      }
+
+      while(lsec < osec && lsec < DIRECT_BLOCKS + ADDS_IN_BLOCK)
+      {
+        sd->sectors[lsec++ - DIRECT_BLOCKS] = addrs[count];  
+        block_write (fs_device, addrs[count++], zeros);
+      }
+
+      if(new_single)
+      {
+        id->single = addrs[count];
+        block_write (fs_device, addrs[count++], sd);
+      }else{
+        block_write (fs_device, id->single, sd);
+      }
+    }
+
+    if(lsec < osec){
+      struct block_with_array *ssd = calloc(1, sizeof(struct block_with_array));
+      memset(sd, 0, sizeof(struct block_with_array));
+
+      bool new_double = lsec == DIRECT_BLOCKS + ADDS_IN_BLOCK;
+      if(!new_double)
+      {
+        block_read (fs_device, id->doubly, sd);
+      }
+      
+      
+      for(i = number_of_dindirect_blocks(lsec); i <= number_of_dindirect_blocks(osec); i++)
+      {
+        bool new_dentry = realdinds(lsec) % ADDS_IN_BLOCK == 0;
+        if(!new_dentry)
+        {
+          block_read (fs_device, sd->sectors[i], ssd);
+        }
+
+        size_t n = number_till_end(osec, i) - number_till_end(lsec, i);
+        for(j = 0; j < n; j++)
+        {
+          ssd->sectors[(lsec++ - DIRECT_BLOCKS - ADDS_IN_BLOCK) % ADDS_IN_BLOCK] = addrs[count];  
+          block_write (fs_device, addrs[count++], zeros);
+        }
+
+        if(new_dentry)
+        {
+          sd->sectors[i] = addrs[count];
+          block_write (fs_device, addrs[count++], ssd);
+        }else{
+          block_write (fs_device, sd->sectors[i], ssd);
+        }
+        
+      }
+      
+      if(new_double)
+      {
+        id->doubly = addrs[count];
+        block_write (fs_device, addrs[count++], sd);
+      }else{
+        block_write (fs_device, id->doubly, sd);
+      }
+    }
+  }
+}
+
 
 /* Initializes an inode with LENGTH bytes of data and
    writes the new inode to sector SECTOR on the file system
@@ -190,6 +328,7 @@ inode_create (block_sector_t sector, off_t length)
     {
       size_t sectors = bytes_to_sectors (length), curr_count = 0, count = 0, i;
       static char zeros[BLOCK_SECTOR_SIZE];
+      memset(zeros, 0, BLOCK_SECTOR_SIZE);
       disk_inode->length = length;
       disk_inode->magic = INODE_MAGIC;
 
@@ -199,7 +338,7 @@ inode_create (block_sector_t sector, off_t length)
         return true;
       }
 
-      block_sector_t *addrs = get_memory_on_disk(sectors);
+      block_sector_t *addrs = get_memory_on_disk(blocks_needed(sectors));
 
       if(!addrs)
       {
@@ -476,16 +615,20 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
     return 0;
   }
 
+  struct inode_disk *id = &inode->data;
+  fill_gap(id, offset);
+
   while (size > 0)
     {
+
       /* Sector to write, starting byte offset within sector. */
-      block_sector_t sector_idx = byte_to_sector (inode, offset);
+      block_sector_t sector_idx = byte_too_sector (inode, offset);
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
-      off_t inode_left = inode_length (inode) - offset;
+      // off_t inode_left = inode_length (inode) - offset;
       int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
-      int min_left = inode_left < sector_left ? inode_left : sector_left;
+      int min_left = sector_left; // inode_left < sector_left ? inode_left : sector_left;
 
       /* Number of bytes to actually write into this sector. */
       int chunk_size = size < min_left ? size : min_left;
