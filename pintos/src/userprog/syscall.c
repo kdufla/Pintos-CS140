@@ -12,7 +12,9 @@
 #include "pagedir.h"
 #include "../threads/vaddr.h"
 #include "../filesys/filesys.h"
+#include "../filesys/directory.h"
 #include "../filesys/file.h"
+#include "../filesys/inode.h"
 #include "../lib/kernel/stdio.h"
 #include "../devices/input.h"
 
@@ -39,6 +41,12 @@ bool readdir (int fd, char *name);
 bool isdir (int fd);
 int inumber (int fd);
 
+struct dir * open_dir_recursively(struct dir * old, char *path);
+struct dir * open_dir(struct dir *parent, const char *child_name);
+static char * str_find_char(char *s, int from, char ch);
+static char * str_find_char_reversed(char *s, int from, char ch);
+static bool str_equal(const char *s1, const char *s2, int n);
+static void copy_path(char *dest, const char *src);
 static bool path_is_absolute(const char *path);
 
 void syscall_init(void)
@@ -275,43 +283,92 @@ void close(int fd)
 	lock_release(&filesys_lock);
 }
 
-bool chdir(const char *dir){
+bool chdir(const char *dir)
+{
     struct thread *th = thread_current ();
     
-    char *path = malloc (strlen(th->curdir)+strlen(dir));
-    strlcpy(path, th->curdir, sizeof path);
+    char *path = malloc (strlen(th->curdir)+strlen(dir)+2);
+    copy_path (path, th->curdir);
 
     if (path_is_absolute(dir))
-    	strlcpy(path, dir, sizeof path);
+    	copy_path (path, dir);
     else
-    	strlcat (path, dir, sizeof path);
+    	copy_path (path + strlen(path), dir);
 
     if (path[strlen(path)-1] != '/')
-    	strlcat(path, "/", sizeof path);
+    	copy_path (path + strlen(path), "/");
 
-    int index = 0;
-    while (path[index] != '\0'){
-    	if (strlen(path) > index + 3 && strncmp(path + index, "/../", 4) == 0){
-    		if (index == 0){
-				strlcpy(path, path + 3, sizeof path);
-    		} else {
-    			path[index] = '\0';
-    			char * b = strrchr(path, '/');
-    			strlcpy(b, path + index + 3, sizeof path);
-    			index = b - path;
+    long index = 0;
+
+    struct dir *parent = dir_open_root ();
+
+    if (parent == NULL)
+		return false;
+
+    while (path[index] != '\0')
+    {
+    	if ((int)strlen(path) > index + 3 && str_equal(path + index, "/../", 4))
+    	{
+    		if (index == 0)
+    		{
+				copy_path (path, path + 3);
     		}
-		} else if (strlen(path) > index + 2 && strncmp(path + index, "/./", 3) == 0){
-			strlcpy(path + index, path + index + 2, sizeof path);
-		} else {
-			index++;
+    		else
+    		{
+    			char *b = str_find_char_reversed (path, index-1, '/');
+    			copy_path (b, path + index + 3);
+    			index = b - path;
+    			b[0] = '\0';
+
+    			parent = open_dir_recursively (parent, path);
+
+    			if (parent == NULL)
+					return false;
+
+    			b[0] = '/';
+    		}
+		}
+		else if ((int)strlen(path) > index + 2 && str_equal(path + index, "/./", 3))
+		{
+			copy_path (path + index, path + index + 2);
+		}
+		else if ((int)strlen(path) > index + 1 && str_equal(path + index, "//", 2))
+		{
+			copy_path (path + index, path + index + 1);
+		}
+		else
+		{
+			char *b = str_find_char (path, index+1, '/');
+			if (b != NULL)
+			{
+				char *child = malloc (strlen(path)-index);
+				copy_path (child, path+index+1);
+				child[b-path-index-1] = '\0';
+
+				parent = open_dir (parent, child);
+
+				if (parent == NULL)
+					return false;
+
+				index = b - path;
+				free (child);
+			}
+			else
+			{
+				break;
+			}
 		}
     }
 
-    strlcpy (th->curdir, path, sizeof th->curdir); 
+    dir_close (parent);
 
+    free (th->curdir);
+    th->curdir = malloc (strlen(path) + 1);
+    copy_path (th->curdir, path);
     free (path);
-    return true;
+    return false;
 }
+
 
 bool mkdir(const char *dir)
 {
@@ -338,6 +395,86 @@ bool isdir(int fd UNUSED)
 int inumber(int fd UNUSED)
 {
 	return -1;
+}
+
+struct dir * open_dir_recursively(struct dir * old, char *path)
+{
+	dir_close (old);
+
+	struct dir *dir = dir_open_root ();
+	int index = 0;
+
+	while (true)
+	{
+		char *b = str_find_char (path, index+1, '/');
+		if (b == NULL)
+			break;
+
+		b[0] = '\0';
+
+		open_dir (dir, path + index + 1);
+
+		b[0] = '/';
+		index = b - path;
+	}
+
+	return dir;
+}
+
+struct dir * open_dir(struct dir *parent, const char *child_name)
+{
+	struct inode *inode = NULL;
+    dir_lookup (parent, child_name, &inode);
+    dir_close (parent);
+
+    if (inode != NULL && is_inode_dir(inode))
+    	return dir_open (inode);
+
+    return NULL;
+}
+
+static char * str_find_char(char *s, int from, char ch)
+{
+	for (; s[from] != '\0'; from++)
+		if (s[from] == ch)
+			return s + from;
+
+	return NULL;
+}
+
+static char * str_find_char_reversed(char *s, int from, char ch)
+{
+	for (; from >= 0; from--)
+		if (s[from] == ch)
+			return s + from;
+
+	return NULL;
+}
+
+static bool str_equal(const char *s1, const char *s2, int n)
+{
+	int index = 0;
+
+	while (s1[index] != '\0' && s2[index] != '\0' && index < n){
+		if (s1[index] != s2[index])
+			return false;
+		index++;
+	}
+
+	return true;
+}
+
+static void copy_path(char *dest, const char *src)
+{
+	int i = 0;
+	int len = strlen(src);
+
+	if (src > dest)
+		for(;i < len + 1; i++)
+			dest[i] = src[i];
+	else
+		for(i = len; i >= 0; i--)
+			dest[i] = src[i];
 }
 
 static bool path_is_absolute(const char *path)
