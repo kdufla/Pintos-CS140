@@ -346,6 +346,9 @@ bool chdir(const char *dir)
 
 bool mkdir(const char *dir)
 {
+	if (strlen(dir) == 0)
+		return false;
+	
 	lock_acquire(&filesys_lock);
 
 	char *path = parse_path (dir, true);
