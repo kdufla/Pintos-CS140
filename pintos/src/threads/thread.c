@@ -9,6 +9,7 @@
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
 #include "threads/palloc.h"
+#include "threads/malloc.h"
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
@@ -635,6 +636,7 @@ init_thread (struct thread *t, const char *name, int priority, fixed_point_t rec
   t->magic = THREAD_MAGIC;
   list_init(&t->locks);
 
+  // t->curdir = malloc(strlen(curdir) + 1);
   strlcpy (t->curdir, curdir, sizeof t->curdir);
 
 #ifdef USERPROG

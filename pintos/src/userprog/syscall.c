@@ -362,11 +362,11 @@ bool chdir(const char *dir)
 
     dir_close (parent);
 
-    free (th->curdir);
-    th->curdir = malloc (strlen(path) + 1);
+    // free (th->curdir);
+    // th->curdir = malloc (strlen(path) + 1);
     copy_path (th->curdir, path);
     free (path);
-    return false;
+    return true;
 }
 
 
