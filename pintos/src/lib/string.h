@@ -25,6 +25,10 @@ size_t strlcat (char *, const char *, size_t);
 char *strtok_r (char *, const char *, char **);
 size_t strnlen (const char *, size_t);
 
+char *str_find_char(char *s, int from, char ch);
+char *str_find_char_reversed(char *s, int from, char ch);
+int str_equal(const char *s1, const char *s2, int n);
+
 /* Try to be helpful. */
 #define strcpy dont_use_strcpy_use_strlcpy
 #define strncpy dont_use_strncpy_use_strlcpy

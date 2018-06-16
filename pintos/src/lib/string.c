@@ -373,3 +373,36 @@ strlcat (char *dst, const char *src, size_t size)
   return src_len + dst_len;
 }
 
+char *
+str_find_char(char *s, int from, char ch)
+{
+  for (; s[from] != '\0'; from++)
+    if (s[from] == ch)
+      return s + from;
+
+  return NULL;
+}
+
+char *
+str_find_char_reversed(char *s, int from, char ch)
+{
+  for (; from >= 0; from--)
+    if (s[from] == ch)
+      return s + from;
+
+  return NULL;
+}
+
+int
+str_equal(const char *s1, const char *s2, int n)
+{
+  int index = 0;
+
+  while (s1[index] != '\0' && s2[index] != '\0' && index < n){
+    if (s1[index] != s2[index])
+      return 0;
+    index++;
+  }
+
+  return 1;
+}

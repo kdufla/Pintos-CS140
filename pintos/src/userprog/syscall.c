@@ -41,11 +41,7 @@ bool readdir (int fd, char *name);
 bool isdir (int fd);
 int inumber (int fd);
 
-struct dir * open_dir_recursively(struct dir * old, char *path);
-struct dir * open_dir(struct dir *parent, const char *child_name);
-static char * str_find_char(char *s, int from, char ch);
-static char * str_find_char_reversed(char *s, int from, char ch);
-static bool str_equal(const char *s1, const char *s2, int n);
+char *parse_path(const char *path, bool make);
 static void copy_path(char *dest, const char *src);
 static bool path_is_absolute(const char *path);
 
@@ -94,8 +90,18 @@ bool create(const char *file, unsigned initial_size)
 {
 	bool result;
 	lock_acquire(&filesys_lock);
-	result = filesys_create(file, initial_size, false);
+
+	char *b = strrchr(file, '/');
+	char *path = malloc (strlen(file) + 1);
+	copy_path (path, file);
+	path[b-file] = '\0';
+	char *parsed_path = parse_path (path, true);
+	free(path);
+
+	result = filesys_create(file, parsed_path, initial_size, false);
+
 	lock_release(&filesys_lock);
+	free(parsed_path);
 	return result;
 }
 
@@ -105,8 +111,18 @@ bool remove(const char *file)
 {
 	bool result;
 	lock_acquire(&filesys_lock);
-	result = filesys_remove(file);
+
+	char *b = strrchr(file, '/');
+	char *path = malloc (strlen(file) + 1);
+	copy_path (path, file);
+	path[b-file] = '\0';
+	char *parsed_path = parse_path (path, false);
+	free(path);
+
+	result = filesys_remove(file, parsed_path);
+
 	lock_release(&filesys_lock);
+	free(parsed_path);
 	return result;
 }
 
@@ -118,7 +134,15 @@ int open(const char *file)
 
 	struct thread *cur = thread_current();
 	int result = -1;
-	struct file *file_p = filesys_open(file);
+
+	char *b = strrchr(file, '/');
+	char *path = malloc (strlen(file) + 1);
+	copy_path (path, file);
+	path[b-file] = '\0';
+	char *parsed_path = parse_path (path, false);
+	free(path);
+
+	struct file *file_p = filesys_open(file, parsed_path);
 
 	if (file_p != NULL)
 	{
@@ -135,6 +159,7 @@ int open(const char *file)
 	}
 
 	lock_release(&filesys_lock);
+	free(parsed_path);
 	return result;
 }
 
@@ -285,15 +310,50 @@ void close(int fd)
 
 bool chdir(const char *dir)
 {
-    struct thread *th = thread_current ();
+    char *path = parse_path (dir, false);
+    copy_path (thread_current()->curdir, path);
+    free (path);
+    return true;
+}
+
+
+bool mkdir(const char *dir)
+{
+	lock_acquire(&filesys_lock);
+
+	char *path = parse_path (dir, true);
+
+	lock_release(&filesys_lock);
+	free(path);
+	return path != NULL;
+}
+
+bool readdir(int fd UNUSED, char *name UNUSED)
+{
+	return false;
+}
+
+bool isdir(int fd UNUSED)
+{
+	return false;
+}
+
+int inumber(int fd UNUSED)
+{
+	return -1;
+}
+
+char *parse_path(const char *old_path, bool make)
+{
+	struct thread *th = thread_current ();
     
-    char *path = malloc (strlen(th->curdir)+strlen(dir)+2);
+    char *path = malloc (strlen(th->curdir)+strlen(old_path)+2);
     copy_path (path, th->curdir);
 
-    if (path_is_absolute(dir))
-    	copy_path (path, dir);
+    if (path_is_absolute(old_path))
+    	copy_path (path, old_path);
     else
-    	copy_path (path + strlen(path), dir);
+    	copy_path (path + strlen(path), old_path);
 
     if (path[strlen(path)-1] != '/')
     	copy_path (path + strlen(path), "/");
@@ -320,7 +380,7 @@ bool chdir(const char *dir)
     			index = b - path;
     			b[0] = '\0';
 
-    			parent = open_dir_recursively (parent, path);
+    			parent = filesys_open_dir_recursively (parent, path, make);
 
     			if (parent == NULL)
 					return false;
@@ -345,7 +405,7 @@ bool chdir(const char *dir)
 				copy_path (child, path+index+1);
 				child[b-path-index-1] = '\0';
 
-				parent = open_dir (parent, child);
+				parent = filesys_open_dir (parent, child, make);
 
 				if (parent == NULL)
 					return false;
@@ -361,107 +421,7 @@ bool chdir(const char *dir)
     }
 
     dir_close (parent);
-
-    // free (th->curdir);
-    // th->curdir = malloc (strlen(path) + 1);
-    copy_path (th->curdir, path);
-    free (path);
-    return true;
-}
-
-
-bool mkdir(const char *dir)
-{
-	bool result;
-	lock_acquire(&filesys_lock);
-
-	int initial_size = 120; /* Droebith */
-
-	result = filesys_create(dir, initial_size, true);
-	lock_release(&filesys_lock);
-	return result;
-}
-
-bool readdir(int fd UNUSED, char *name UNUSED)
-{
-	return false;
-}
-
-bool isdir(int fd UNUSED)
-{
-	return false;
-}
-
-int inumber(int fd UNUSED)
-{
-	return -1;
-}
-
-struct dir * open_dir_recursively(struct dir * old, char *path)
-{
-	dir_close (old);
-
-	struct dir *dir = dir_open_root ();
-	int index = 0;
-
-	while (true)
-	{
-		char *b = str_find_char (path, index+1, '/');
-		if (b == NULL)
-			break;
-
-		b[0] = '\0';
-
-		open_dir (dir, path + index + 1);
-
-		b[0] = '/';
-		index = b - path;
-	}
-
-	return dir;
-}
-
-struct dir * open_dir(struct dir *parent, const char *child_name)
-{
-	struct inode *inode = NULL;
-    dir_lookup (parent, child_name, &inode);
-    dir_close (parent);
-
-    if (inode != NULL && is_inode_dir(inode))
-    	return dir_open (inode);
-
-    return NULL;
-}
-
-static char * str_find_char(char *s, int from, char ch)
-{
-	for (; s[from] != '\0'; from++)
-		if (s[from] == ch)
-			return s + from;
-
-	return NULL;
-}
-
-static char * str_find_char_reversed(char *s, int from, char ch)
-{
-	for (; from >= 0; from--)
-		if (s[from] == ch)
-			return s + from;
-
-	return NULL;
-}
-
-static bool str_equal(const char *s1, const char *s2, int n)
-{
-	int index = 0;
-
-	while (s1[index] != '\0' && s2[index] != '\0' && index < n){
-		if (s1[index] != s2[index])
-			return false;
-		index++;
-	}
-
-	return true;
+    return path;
 }
 
 static void copy_path(char *dest, const char *src)
