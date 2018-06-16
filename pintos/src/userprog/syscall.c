@@ -91,10 +91,19 @@ bool create(const char *file, unsigned initial_size)
 	bool result;
 	lock_acquire(&filesys_lock);
 
+	char *path;
 	char *b = strrchr(file, '/');
-	char *path = malloc (strlen(file) + 1);
-	copy_path (path, file);
-	path[b-file] = '\0';
+	if (b == NULL)
+	{
+		path = malloc (1);
+		path[0] = '\0';
+	}
+	else
+	{
+		path = malloc (strlen(file) + 1);
+		copy_path (path, file);
+		path[b-file] = '\0';
+	}
 	char *parsed_path = parse_path (path, true);
 	free(path);
 
@@ -112,10 +121,19 @@ bool remove(const char *file)
 	bool result;
 	lock_acquire(&filesys_lock);
 
+	char *path;
 	char *b = strrchr(file, '/');
-	char *path = malloc (strlen(file) + 1);
-	copy_path (path, file);
-	path[b-file] = '\0';
+	if (b == NULL)
+	{
+		path = malloc (1);
+		path[0] = '\0';
+	}
+	else
+	{
+		path = malloc (strlen(file) + 1);
+		copy_path (path, file);
+		path[b-file] = '\0';
+	}
 	char *parsed_path = parse_path (path, false);
 	free(path);
 
@@ -135,10 +153,19 @@ int open(const char *file)
 	struct thread *cur = thread_current();
 	int result = -1;
 
+	char *path;
 	char *b = strrchr(file, '/');
-	char *path = malloc (strlen(file) + 1);
-	copy_path (path, file);
-	path[b-file] = '\0';
+	if (b == NULL)
+	{
+		path = malloc (1);
+		path[0] = '\0';
+	}
+	else
+	{
+		path = malloc (strlen(file) + 1);
+		copy_path (path, file);
+		path[b-file] = '\0';
+	}
 	char *parsed_path = parse_path (path, false);
 	free(path);
 

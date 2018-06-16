@@ -108,7 +108,7 @@ filesys_open_dir_recursively(struct dir * old, char *path, bool make)
 {
   if (path == NULL)
     return NULL;
-  
+
   dir_close (old);
 
   struct dir *dir = dir_open_root ();
