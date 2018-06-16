@@ -398,7 +398,7 @@ str_equal(const char *s1, const char *s2, int n)
 {
   int index = 0;
 
-  while (s1[index] != '\0' && s2[index] != '\0' && index < n){
+  while (!(s1[index] == '\0' && s2[index] == '\0') && index < n){
     if (s1[index] != s2[index])
       return 0;
     index++;

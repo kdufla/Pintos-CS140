@@ -139,11 +139,11 @@ struct dir *
 filesys_open_dir(struct dir *parent, const char *child_name)
 {
   struct inode *inode = NULL;
-    dir_lookup (parent, child_name, &inode);
-    dir_close (parent);
+  dir_lookup (parent, child_name, &inode);
+  dir_close (parent);
 
-    if (inode != NULL && is_inode_dir(inode))
-      return dir_open (inode);
+  if (inode != NULL && is_inode_dir(inode))
+    return dir_open (inode);
 
-    return NULL;
+  return NULL;
 }

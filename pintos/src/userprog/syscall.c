@@ -36,12 +36,12 @@ void seek(int fd, unsigned position);
 unsigned tell(int fd);
 void close(int fd);
 bool chdir (const char *dir);
-bool mkdir (const char *dir);
+bool mkdir (const char *dir_path);
 bool readdir (int fd, char *name);
 bool isdir (int fd);
 int inumber (int fd);
 
-bool get_dir_and_filename(const char *file, char **b, struct dir **dir);
+bool get_dir_and_filename(const char *file, char **b, struct dir **dir, char** full_path);
 char *parse_path(const char *path, struct dir **dir);
 static void copy_path(char *dest, const char *src);
 static bool path_is_absolute(const char *path);
@@ -94,7 +94,9 @@ bool create(const char *file, unsigned initial_size)
 
 	struct dir *dir = NULL;
 	char *b = NULL;
-	result = get_dir_and_filename(file, &b, &dir);
+	char *fp = NULL;
+	result = get_dir_and_filename(file, &b, &dir, &fp);
+	free(fp);
 
 	if (result)
 		result = filesys_create(b, dir, initial_size, false);
@@ -112,7 +114,14 @@ bool remove(const char *file)
 
 	struct dir *dir = NULL;
 	char *b = NULL;
-	result = get_dir_and_filename(file, &b, &dir);
+	char *fp = NULL;
+	result = get_dir_and_filename(file, &b, &dir, &fp);
+
+	char* a = thread_current()->curdir;
+	if (str_equal(a, fp, strlen(a)+1))
+		result = false;
+
+	free(fp);
 
 	if (result)
 		result = filesys_remove(b, dir);
@@ -132,24 +141,30 @@ int open(const char *file)
 
 	struct dir *dir = NULL;
 	char *b = NULL;
-	result = get_dir_and_filename(file, &b, &dir);
+	char *fp = NULL;
+	bool success = get_dir_and_filename(file, &b, &dir, &fp);
+	free(fp);
 
-	struct file *file_p = filesys_open(b, dir);
 
-	if (file_p != NULL)
+	if(success)
 	{
-		int i;
-		for (i = 0; i < FD_MAX; i++)
+		struct file *file_p = filesys_open(b, dir);
+
+		if (file_p != NULL)
 		{
-			if (cur->descls[i] == NULL)
+			int i;
+			for (i = 0; i < FD_MAX; i++)
 			{
-				cur->descls[i] = file_p;
-				result = i + 2;
-				break;
+				if (cur->descls[i] == NULL)
+				{
+					cur->descls[i] = file_p;
+					result = i + 2;
+					break;
+				}
 			}
 		}
 	}
-
+		
 	lock_release(&filesys_lock);
 	return result;
 }
@@ -231,7 +246,10 @@ int write(int fd, const void *buffer, unsigned size)
 
 	if (cur->descls[fd - 2] != NULL)
 	{
-		result = file_write(cur->descls[fd - 2], buffer, size);
+		if (is_inode_dir(file_get_inode(cur->descls[fd - 2])))
+			result = -1;
+    	else
+			result = file_write(cur->descls[fd - 2], buffer, size);
 	}
 
 	lock_release(&filesys_lock);
@@ -309,19 +327,40 @@ bool chdir(const char *dir_path)
 }
 
 
-bool mkdir(const char *dir)
+bool mkdir(const char *dir_path)
 {
-	if (strlen(dir) == 0)
+	if (strlen(dir_path) == 0)
 		return false;
 	
 	lock_acquire(&filesys_lock);
 
-	struct dir * a = NULL;
-	char *path = parse_path (dir, &a);
+	bool result = false;
+	int len = strlen(dir_path);
+	char *path = malloc(len + 1);
+	copy_path(path, dir_path);
+
+	if(path[len - 1] == '/')
+		path[len - 1] = '\0';
+
+	struct dir *dir = NULL;
+	char *b = NULL;
+	char *fp = NULL;
+	result = get_dir_and_filename(path, &b, &dir, &fp);
+	free(fp);
+
+
+	if (result)
+	{
+		struct inode *inode = NULL;
+		dir_lookup (dir, b, &inode);
+
+		if (inode == NULL)
+			result = filesys_create(b, dir, 128, true);
+	}
 
 	lock_release(&filesys_lock);
 	free(path);
-	return path != NULL;
+	return result;
 }
 
 bool readdir(int fd UNUSED, char *name UNUSED)
@@ -420,7 +459,7 @@ char *parse_path(const char *dir_path, struct dir **dir)
     return path;
 }
 
-bool get_dir_and_filename(const char *file, char **b, struct dir **dir)
+bool get_dir_and_filename(const char *file, char **b, struct dir **dir, char** full_path)
 {
 	char *path;
 	*b = strrchr(file, '/');
@@ -437,10 +476,9 @@ bool get_dir_and_filename(const char *file, char **b, struct dir **dir)
 		path[*b-file] = '\0';
 		(*b)++;
 	}
-	char *parsed_path = parse_path (path, dir);
-	bool result = parsed_path != NULL;
+	*full_path = parse_path (path, dir);
+	bool result = *full_path != NULL;
 	free(path);
-	free(parsed_path);
 	return result;
 }
 
