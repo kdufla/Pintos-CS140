@@ -118,7 +118,7 @@ struct thread
     struct file *executable;            /* File that currently is being executed if this thread is proccess (else NULL) */
 #endif
 
-    char curdir[128];                       /* Current directory */
+    char curdir[256];                       /* Current directory */
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */

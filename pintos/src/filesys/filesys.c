@@ -43,10 +43,11 @@ filesys_done (void)
    Fails if a file named NAME already exists,
    or if internal memory allocation fails. */
 bool
-filesys_create (const char *name, char *path, off_t initial_size, bool is_dir)
+filesys_create (const char *name, struct dir *dir, off_t initial_size, bool is_dir)
 {
   block_sector_t inode_sector = 0;
-  struct dir *dir = filesys_open_dir_recursively(NULL, path, true);
+  if (dir == NULL)
+    dir = dir_open_root();
 
   bool success = (dir != NULL
                   && free_map_allocate (1, &inode_sector)
@@ -65,9 +66,11 @@ filesys_create (const char *name, char *path, off_t initial_size, bool is_dir)
    Fails if no file named NAME exists,
    or if an internal memory allocation fails. */
 struct file *
-filesys_open (const char *name, char *path)
+filesys_open (const char *name, struct dir *dir)
 {
-  struct dir *dir = filesys_open_dir_recursively (NULL, path, false);
+  if (dir == NULL)
+    dir = dir_open_root();
+  
   struct inode *inode = NULL;
 
   if (dir != NULL)
@@ -82,9 +85,10 @@ filesys_open (const char *name, char *path)
    Fails if no file named NAME exists,
    or if an internal memory allocation fails. */
 bool
-filesys_remove (const char *name, char *path)
+filesys_remove (const char *name, struct dir *dir)
 {
-  struct dir *dir = filesys_open_dir_recursively (NULL, path, false);
+  if (dir == NULL)
+    dir = dir_open_root();
   bool success = dir != NULL && dir_remove (dir, name);
   dir_close (dir);
 
@@ -104,7 +108,7 @@ do_format (void)
 }
 
 struct dir *
-filesys_open_dir_recursively(struct dir * old, char *path, bool make)
+filesys_open_dir_recursively(struct dir * old, char *path)
 {
   if (path == NULL)
     return NULL;
@@ -122,7 +126,7 @@ filesys_open_dir_recursively(struct dir * old, char *path, bool make)
 
     b[0] = '\0';
 
-    filesys_open_dir (dir, path + index + 1, make);
+    filesys_open_dir (dir, path + index + 1);
 
     b[0] = '/';
     index = b - path;
@@ -132,22 +136,10 @@ filesys_open_dir_recursively(struct dir * old, char *path, bool make)
 }
 
 struct dir *
-filesys_open_dir(struct dir *parent, const char *child_name, bool make)
+filesys_open_dir(struct dir *parent, const char *child_name)
 {
   struct inode *inode = NULL;
     dir_lookup (parent, child_name, &inode);
-
-    if (make && inode == NULL)
-    {
-      block_sector_t inode_sector = 0;
-      bool success = (free_map_allocate (1, &inode_sector)
-                      && inode_create (inode_sector, 128, true)
-                      && dir_add (parent, child_name, inode_sector));
-      if (!success && inode_sector != 0)
-        free_map_release (inode_sector, 1);
-      dir_lookup (parent, child_name, &inode);
-    }
-
     dir_close (parent);
 
     if (inode != NULL && is_inode_dir(inode))
