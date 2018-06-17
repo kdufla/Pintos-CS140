@@ -36,7 +36,7 @@ struct inode_disk
   };
 
 struct block_with_array {
-  block_sector_t sectors[ADDS_IN_BLOCK];
+  block_sector_t sectors[ADDS_IN_BLOCK];  /* 128 numbers, 4 byte each (512 bytes or 1 block total) */
 };
 
 
@@ -108,7 +108,7 @@ byte_to_sector (struct inode *inode, off_t pos)
 }
 
 static block_sector_t
-byte_too_sector (struct inode *inode, off_t pos)
+byte_to_sector_create (struct inode *inode, off_t pos)
 {
   ASSERT (inode != NULL);
   if (pos < inode->data.length)
@@ -622,7 +622,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
     {
 
       /* Sector to write, starting byte offset within sector. */
-      block_sector_t sector_idx = byte_too_sector (inode, offset);
+      block_sector_t sector_idx = byte_to_sector_create (inode, offset);
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
