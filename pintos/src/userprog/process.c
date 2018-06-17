@@ -372,7 +372,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   /* Open executable file. */
 	lock_acquire(&filesys_lock);
-  file = filesys_open (file_name_);
+  file = filesys_open (file_name_, NULL);
   lock_release(&filesys_lock);
   if (file == NULL)
     {

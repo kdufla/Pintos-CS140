@@ -10,7 +10,7 @@
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
 
-#define DIRECT_BLOCKS 124
+#define DIRECT_BLOCKS 123
 #define ADDS_IN_BLOCK (BLOCK_SECTOR_SIZE / sizeof(block_sector_t))
 
 #define number_of_directs(sec) (sec > DIRECT_BLOCKS ? DIRECT_BLOCKS : sec)
@@ -32,6 +32,7 @@ struct inode_disk
     block_sector_t direct[DIRECT_BLOCKS]; /* Direct Blocks */
     block_sector_t single;                /* Single Indirect */
     block_sector_t doubly;                /* Double Indirect */
+    bool is_dir;
     unsigned magic;                       /* Magic number. */
   };
 
@@ -313,7 +314,7 @@ void fill_gap(struct inode_disk *id, size_t off)
    Returns true if successful.
    Returns false if memory or disk allocation fails. */
 bool
-inode_create (block_sector_t sector, off_t length)
+inode_create (block_sector_t sector, off_t length, bool is_dir)
 {
   struct inode_disk *disk_inode = NULL;
 
@@ -330,6 +331,7 @@ inode_create (block_sector_t sector, off_t length)
       static char zeros[BLOCK_SECTOR_SIZE];
       memset(zeros, 0, BLOCK_SECTOR_SIZE);
       disk_inode->length = length;
+      disk_inode->is_dir = is_dir;
       disk_inode->magic = INODE_MAGIC;
 
       if(length == 0){
@@ -696,4 +698,10 @@ off_t
 inode_length (const struct inode *inode)
 {
   return inode->data.length;
+}
+
+bool
+is_inode_dir (struct inode *inode)
+{
+  return inode->data.is_dir;
 }
