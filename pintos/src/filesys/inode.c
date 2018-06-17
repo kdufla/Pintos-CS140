@@ -108,6 +108,12 @@ byte_to_sector (struct inode *inode, off_t pos)
     return -1;
 }
 
+/* Returns the block device sector that contains byte offset POS
+ * within INODE.
+ * Creates and returns the block device sector that contains byte 
+ * offset POS within INODE if INODE does not contain data for a byte
+ * at offset POS.
+ * */
 static block_sector_t
 byte_to_sector_create (struct inode *inode, off_t pos)
 {
@@ -188,7 +194,9 @@ inode_init (void)
   list_init (&open_inodes);
 }
 
-
+/*
+ * Get array of len non-consecutive sectors 
+*/
 block_sector_t *get_memory_on_disk(size_t len)
 {
   size_t i, j;
@@ -213,7 +221,9 @@ block_sector_t *get_memory_on_disk(size_t len)
   return addrs;
 }
 
-
+/*
+ * fill directly indexed sectors (first int sectors)
+ */
 void fill_direct_sectors(int sectors,char *zeros, struct inode_disk *disk_inode, block_sector_t *addrs)
 {
   int i;
@@ -224,6 +234,9 @@ void fill_direct_sectors(int sectors,char *zeros, struct inode_disk *disk_inode,
   }
 }
 
+/*
+ * fill struct block_with_array *sd with sectors (first int sectors)
+ */
 void fill_indirect_sectors(int sectors, char *zeros, int curr, struct block_with_array *sd, block_sector_t *addrs)
 {
   int i;
@@ -234,6 +247,11 @@ void fill_indirect_sectors(int sectors, char *zeros, int curr, struct block_with
   }
 }
 
+/*
+ * allocate memory on dist if needed.
+ * from last allocated memory (lenght) to new offset
+ * and fill with 0's
+ */
 void fill_gap(struct inode_disk *id, size_t off)
 {
   size_t lsec = id->length /  BLOCK_SECTOR_SIZE, osec = off /  BLOCK_SECTOR_SIZE, i, j, count = 0, lll = id->length;
@@ -481,6 +499,9 @@ inode_get_inumber (const struct inode *inode)
   return inode->sector;
 }
 
+/*
+ * release memory on disk held by passed inode
+ */
 void release_inode_mem(struct inode_disk *id)
 {
   size_t i, j, n, b, sec = bytes_to_sectors(id->length);
