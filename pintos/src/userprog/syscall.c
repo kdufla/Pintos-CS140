@@ -43,6 +43,7 @@ int inumber (int fd);
 
 bool get_dir_and_filename(const char *file, char **b, struct dir **dir, char** full_path);
 char *parse_path(const char *path, struct dir **dir);
+void replace_pt_with_last_dir (char **b, char** abs_path);
 static void copy_path(char *dest, const char *src);
 static bool path_is_absolute(const char *path);
 
@@ -92,6 +93,9 @@ bool create(const char *file, unsigned initial_size)
 	bool result;
 	lock_acquire(&filesys_lock);
 
+	if (strlen(file) == 1 && (file)[0] == '.')
+		return false;
+
 	struct dir *dir = NULL;
 	char *b = NULL;
 	char *fp = NULL;
@@ -112,16 +116,25 @@ bool remove(const char *file)
 	bool result;
 	lock_acquire(&filesys_lock);
 
+	if (strlen(file) == 1 && (file)[0] == '.')
+		return false;
+
 	struct dir *dir = NULL;
 	char *b = NULL;
-	char *fp = NULL;
-	result = get_dir_and_filename(file, &b, &dir, &fp);
+	char *abs_path = NULL;
+	result = get_dir_and_filename(file, &b, &dir, &abs_path);
 
-	char* a = thread_current()->curdir;
-	if (str_equal(a, fp, strlen(a)+1))
+	// Do not delete current working directory
+	char *cwd = thread_current()->curdir;
+	char *full_path = malloc(strlen(b) + strlen(abs_path) + 2);
+	copy_path (full_path, abs_path);
+	copy_path (full_path + strlen(full_path), b);
+	copy_path (full_path + strlen(full_path), "/");
+	if (str_equal(cwd, full_path, strlen(cwd)+1))
 		result = false;
 
-	free(fp);
+	free (full_path);
+	free (abs_path);
 
 	if (result)
 		result = filesys_remove(b, dir);
@@ -141,25 +154,25 @@ int open(const char *file)
 
 	struct dir *dir = NULL;
 	char *b = NULL;
-	char *fp = NULL;
+	char *abs_path = NULL;
 
-	
-
-	bool success = get_dir_and_filename(file, &b, &dir, &fp);
-	free(fp);
-
+	bool success = get_dir_and_filename(file, &b, &dir, &abs_path);
 
 	if(success)
 	{
 		struct file *file_p;
 
-		if(strlen(file) == 1 && file[0] == '/')
+		if(strlen(b) == 1 && b[0] == '/')
 		{
 			dir = dir_open_root();
 			struct inode *inode = dir->inode;
 
 			file_p = file_open(inode);
 		}else{
+
+			if (b[strlen(b) - 1] == '/')
+				b[strlen(b) - 1] = '\0';
+
 			file_p = filesys_open(b, dir);
 		}
 
@@ -177,6 +190,8 @@ int open(const char *file)
 			}
 		}
 	}
+
+	free(abs_path);
 		
 	lock_release(&filesys_lock);
 	return result;
@@ -332,8 +347,8 @@ void close(int fd)
 
 bool chdir(const char *dir_path)
 {	
-	struct dir * a = NULL;
-    char *path = parse_path (dir_path, &a);
+	struct dir *dir = NULL;
+    char *path = parse_path (dir_path, &dir);
     copy_path (thread_current()->curdir, path);
     free (path);
     return true;
@@ -376,19 +391,48 @@ bool mkdir(const char *dir_path)
 	return result;
 }
 
-bool readdir(int fd UNUSED, char *name UNUSED)
+bool readdir(int fd, char *name)
 {
+	if (isdir(fd))
+	{
+		struct thread *cur = thread_current();
+		struct dir *dir = dir_open (file_get_inode(cur->descls[fd - 2]));
+		dir_readdir (dir, name);
+	}
 	return false;
 }
 
-bool isdir(int fd UNUSED)
+bool isdir(int fd)
 {
-	return false;
+	if (fd == 0 || fd == 1 || fd > FD_MAX + 1 || fd < 0)
+	{
+		return false;
+	}
+	struct thread *cur = thread_current();
+
+	if (cur->descls[fd - 2] == NULL)
+	{
+		return false;
+	}
+	
+	return is_inode_dir (file_get_inode(cur->descls[fd - 2]));
 }
 
-int inumber(int fd UNUSED)
+int inumber(int fd)
 {
-	return -1;
+	if (fd == 0 || fd == 1 || fd > FD_MAX + 1 || fd < 0)
+	{
+		return -1;
+	}
+
+	struct thread *cur = thread_current();
+
+	if (cur->descls[fd - 2] == NULL)
+	{
+		return -1;
+	}
+
+	return inode_get_inumber (file_get_inode(cur->descls[fd - 2]));
 }
 
 char *parse_path(const char *dir_path, struct dir **dir)
@@ -482,6 +526,15 @@ bool get_dir_and_filename(const char *file, char **b, struct dir **dir, char** f
 		path[0] = '\0';
 		*b = file;
 	}
+	else if (file == *b)
+	{
+		path = malloc (2);
+		copy_path (path, "/");
+		(*b)++;
+
+		if (strlen(*b) == 0)
+			(*b)--;
+	}
 	else
 	{
 		path = malloc (strlen(file) + 1);
@@ -490,6 +543,29 @@ bool get_dir_and_filename(const char *file, char **b, struct dir **dir, char** f
 		(*b)++;
 	}
 	*full_path = parse_path (path, dir);
+
+	if (strlen(*b) == 1 && (*b)[0] == '.')
+	{
+		(*full_path)[strlen(*full_path) - 1] = '\0';
+		char *bb = strrchr(*full_path, '/');
+		if (bb == NULL)
+		{
+			*b = *full_path;
+		}
+		else
+		{
+			*b = bb + 1;
+			bb[0] = '\0';
+
+			char *tmp_cwd = thread_current ()->curdir;
+			copy_path (thread_current ()->curdir, "/");
+
+			*full_path = parse_path (*full_path, dir);
+			
+			copy_path (thread_current ()->curdir, tmp_cwd);
+		}
+	}
+
 	bool result = *full_path != NULL;
 	free(path);
 	return result;
