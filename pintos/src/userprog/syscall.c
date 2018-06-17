@@ -136,8 +136,7 @@ bool remove(const char *file)
 	free (full_path);
 	free (abs_path);
 
-	if (result)
-		result = filesys_remove(b, dir);
+	result = filesys_remove(b, dir);
 
 	lock_release(&filesys_lock);
 	return result;
@@ -349,9 +348,10 @@ bool chdir(const char *dir_path)
 {	
 	struct dir *dir = NULL;
     char *path = parse_path (dir_path, &dir);
-    copy_path (thread_current()->curdir, path);
+	if(path)
+	    copy_path (thread_current()->curdir, path);
     free (path);
-    return true;
+    return path;
 }
 
 
@@ -381,10 +381,12 @@ bool mkdir(const char *dir_path)
 	{
 		struct inode *inode = NULL;
 		dir_lookup (dir, b, &inode);
-
+		result = false;
 		if (inode == NULL)
 			result = filesys_create(b, dir, 128, true);
+		inode_close(inode);
 	}
+	// dir_close(dir);
 
 	lock_release(&filesys_lock);
 	free(path);
@@ -573,15 +575,16 @@ bool get_dir_and_filename(const char *file, char **b, struct dir **dir, char** f
 
 static void copy_path(char *dest, const char *src)
 {
-	int i = 0;
-	int len = strlen(src);
+	memmove(dest, src, strlen(src) + 1);
+	// int i = 0;
+	// int len = strlen(src);
 
-	if (src > dest)
-		for(;i < len + 1; i++)
-			dest[i] = src[i];
-	else
-		for(i = len; i >= 0; i--)
-			dest[i] = src[i];
+	// if (src > dest)
+	// 	for(;i < len + 1; i++)
+	// 		dest[i] = src[i];
+	// else
+	// 	for(i = len; i >= 0; i--)
+	// 		dest[i] = src[i];
 }
 
 static bool path_is_absolute(const char *path)
