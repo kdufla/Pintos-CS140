@@ -142,13 +142,26 @@ int open(const char *file)
 	struct dir *dir = NULL;
 	char *b = NULL;
 	char *fp = NULL;
+
+	
+
 	bool success = get_dir_and_filename(file, &b, &dir, &fp);
 	free(fp);
 
 
 	if(success)
 	{
-		struct file *file_p = filesys_open(b, dir);
+		struct file *file_p;
+
+		if(strlen(file) == 1 && file[0] == '/')
+		{
+			dir = dir_open_root();
+			struct inode *inode = dir->inode;
+
+			file_p = file_open(inode);
+		}else{
+			file_p = filesys_open(b, dir);
+		}
 
 		if (file_p != NULL)
 		{

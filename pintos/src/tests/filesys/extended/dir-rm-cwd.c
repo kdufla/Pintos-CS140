@@ -11,8 +11,9 @@ wrap_open (const char *name)
 {
   static int fds[8], fd_cnt;
   int fd, i;
-
-  CHECK ((fd = open (name)) > 1, "open \"%s\"", name);
+  fd = open (name);
+  msg("fd: %d", fd);
+  CHECK ((fd) > 1, "open \"%s\"", name);
   for (i = 0; i < fd_cnt; i++)
     if (fds[i] == fd)
       fail ("fd returned is not unique");
