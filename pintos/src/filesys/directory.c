@@ -31,7 +31,7 @@ dir_open (struct inode *inode)
   if (inode != NULL && dir != NULL)
     {
       dir->inode = inode;
-      dir->pos = 0;
+      dir->pos = inode_pos (inode);
       return dir;
     }
   else
@@ -216,9 +216,9 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
 {
   struct dir_entry e;
 
-  while (inode_read_at (dir->inode, &e, sizeof e, dir->pos) == sizeof e)
+  while (inode_read_at (dir->inode, &e, sizeof e, inode_pos(dir->inode)) == sizeof e)
     {
-      dir->pos += sizeof e;
+      inode_incremente_pos (dir->inode, sizeof e);
       if (e.in_use)
         {
           strlcpy (name, e.name, NAME_MAX + 1);

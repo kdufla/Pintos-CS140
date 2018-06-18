@@ -133,10 +133,16 @@ bool remove(const char *file)
 	if (str_equal(cwd, full_path, strlen(cwd)+1))
 		result = false;
 
+	struct inode *inode = NULL;
+
+	if (result && dir_lookup(dir, b, &inode) && inode_open_count(inode) > 1 && is_inode_dir(inode))
+		result = false;
+
 	free (full_path);
 	free (abs_path);
 
-	result = filesys_remove(b, dir);
+	if (result)
+		result = filesys_remove(b, dir);
 
 	lock_release(&filesys_lock);
 	return result;
@@ -347,10 +353,12 @@ void close(int fd)
 bool chdir(const char *dir_path)
 {	
 	struct dir *dir = NULL;
+	lock_acquire(&filesys_lock);
     char *path = parse_path (dir_path, &dir);
 	if(path)
 	    copy_path (thread_current()->curdir, path);
     free (path);
+    lock_release(&filesys_lock);
     return path;
 }
 
@@ -399,7 +407,7 @@ bool readdir(int fd, char *name)
 	{
 		struct thread *cur = thread_current();
 		struct dir *dir = dir_open (file_get_inode(cur->descls[fd - 2]));
-		dir_readdir (dir, name);
+		return dir_readdir (dir, name);
 	}
 	return false;
 }
@@ -559,7 +567,8 @@ bool get_dir_and_filename(const char *file, char **b, struct dir **dir, char** f
 			*b = bb + 1;
 			bb[0] = '\0';
 
-			char *tmp_cwd = thread_current ()->curdir;
+			char *tmp_cwd = malloc (strlen(thread_current()->curdir) + 1);
+			copy_path (tmp_cwd, thread_current ()->curdir);
 			copy_path (thread_current ()->curdir, "/");
 
 			*full_path = parse_path (*full_path, dir);

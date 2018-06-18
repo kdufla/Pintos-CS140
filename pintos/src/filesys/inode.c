@@ -46,6 +46,7 @@ struct inode
     int open_cnt;                       /* Number of openers. */
     bool removed;                       /* True if deleted, false otherwise. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
+    off_t pos;
     struct inode_disk data;             /* Inode content. */
   };
 struct block_with_array {
@@ -481,6 +482,7 @@ inode_open (block_sector_t sector)
   inode->sector = sector;
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
+  inode->pos = 0;
   inode->removed = false;
   block_read (fs_device, inode->sector, &inode->data);
   return inode;
@@ -752,4 +754,22 @@ bool
 is_inode_dir (struct inode *inode)
 {
   return inode->data.is_dir;
+}
+
+int
+inode_open_count (struct inode *inode)
+{
+  return inode->open_cnt;
+}
+
+off_t
+inode_pos (struct inode *inode)
+{
+  return inode->pos;
+}
+
+void
+inode_incremente_pos (struct inode *inode, int n)
+{
+  inode->pos += n;
 }
