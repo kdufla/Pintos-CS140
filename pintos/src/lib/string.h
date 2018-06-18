@@ -5,6 +5,7 @@
 
 /* Standard. */
 void *memcpy (void *, const void *, size_t);
+int strncmp(const char *s, const char *t, size_t num);
 void *memmove (void *, const void *, size_t);
 char *strncat (char *, const char *, size_t);
 int memcmp (const void *, const void *, size_t);
