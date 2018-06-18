@@ -7,6 +7,7 @@
 #include "threads/synch.h"
 #include "threads/fixed-point.h"
 #include "filesys/file.h"
+#include "../devices/block.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -118,7 +119,7 @@ struct thread
     struct file *executable;            /* File that currently is being executed if this thread is proccess (else NULL) */
 #endif
 
-    char curdir[256];                       /* Current directory */
+    block_sector_t curdir_inum;         /* Current directory sector number*/
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */

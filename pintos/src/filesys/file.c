@@ -1,6 +1,7 @@
 #include "filesys/file.h"
 #include <debug.h>
 #include "filesys/inode.h"
+#include "filesys/directory.h"
 #include "threads/malloc.h"
 
 /* An open file. */
@@ -165,4 +166,16 @@ file_tell (struct file *file)
 {
   ASSERT (file != NULL);
   return file->pos;
+}
+
+bool
+file_is_dir (struct file *file)
+{
+  return inode_is_dir (file_get_inode (file));
+}
+
+bool
+file_is_open (struct file *file)
+{
+  return inode_open_count (file_get_inode (file)) > 1;
 }
