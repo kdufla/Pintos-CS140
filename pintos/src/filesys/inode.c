@@ -34,7 +34,7 @@ struct inode_disk
     block_sector_t direct[DIRECT_BLOCKS]; /* Direct Blocks */
     block_sector_t single;                /* Single Indirect */
     block_sector_t doubly;                /* Double Indirect */
-    bool is_dir;
+    bool is_dir;                          /* Is directory? */
     unsigned magic;                       /* Magic number. */
   };
 
@@ -46,7 +46,7 @@ struct inode
     int open_cnt;                       /* Number of openers. */
     bool removed;                       /* True if deleted, false otherwise. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
-    off_t pos;
+    off_t pos;                          /* Current position. */
     struct inode_disk data;             /* Inode content. */
   };
 struct block_with_array {
