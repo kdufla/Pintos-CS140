@@ -29,5 +29,7 @@ off_t file_length (struct file *);
 
 bool file_is_dir (struct file *);
 bool file_is_open (struct file *);
+bool file_is_cwd (struct file *);
+bool file_is_parent (struct file *);
 
 #endif /* filesys/file.h */
