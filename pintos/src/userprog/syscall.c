@@ -140,9 +140,11 @@ bool remove(const char *file_path)
 	}
 
 	if (remove)
+	{
+		file_close (file);
 		result = filesys_remove (file_name, dir_open (inode_open (parent_sector)));
-
-	file_close (file);
+	}
+		
 	free(file_name);
 	lock_release(&filesys_lock);
 	return result;
@@ -344,6 +346,8 @@ bool chdir(const char *dir_path)
 
 	result = result && set_cwd (dir);
 
+	dir_close (dir);
+
     lock_release (&filesys_lock);
 
     return result;
@@ -374,7 +378,12 @@ bool readdir(int fd, char *name)
 
 		struct dir *dir = dir_open (file_get_inode (cur->descls[fd - 2]));
 
-		return dir_readdir (dir, name);
+		bool result = dir_readdir (dir, name);
+
+		if (result && (str_equal (name, ".", 2) || str_equal (name, "..", 3)))
+			return readdir(fd, name);
+
+		return result;
 	}
 	return false;
 }
@@ -448,6 +457,8 @@ bool make_file_from_path (struct dir **parent, const char *file_path, bool is_di
 		strlcpy (last_part, path_part, NAME_MAX + 1);
 	}
 
+	block_sector_t parent_sector = inode_get_inumber (dir_get_inode (*parent));
+
 	if (!filesys_create (last_part, *parent, initial_size, is_dir)){
 		free(path_part);
 		free(last_part);
@@ -457,11 +468,13 @@ bool make_file_from_path (struct dir **parent, const char *file_path, bool is_di
 	if (is_dir)
 	{
 		struct inode *inode = NULL;
+		*parent = dir_open (inode_open (parent_sector));
 		dir_lookup (*parent, last_part, &inode);
 		struct dir *dir = dir_open (inode);
 		dir_add (dir, ".", inode_get_inumber (inode));
 		dir_add (dir, "..", inode_get_inumber (dir_get_inode (*parent)));
 		dir_close (dir);
+		dir_close (*parent);
 	}
 
 	free(path_part);
