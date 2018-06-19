@@ -179,3 +179,19 @@ file_is_open (struct file *file)
 {
   return inode_open_count (file_get_inode (file)) > 1;
 }
+
+bool file_is_cwd (struct file *file)
+{
+  return inode_get_inumber (file_get_inode (file)) == get_cwd_inum ();
+}
+
+bool file_is_parent (struct file *file)
+{
+	struct inode *inode = NULL;
+	struct dir *cwd = get_cwd ();
+	dir_lookup (cwd, "..", &inode);
+	bool result = inode_get_inumber (file_get_inode (file)) == inode_get_inumber (inode);
+	inode_close (inode);
+	dir_close (cwd);
+	return result;
+}

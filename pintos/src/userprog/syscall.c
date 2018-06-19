@@ -42,18 +42,10 @@ bool readdir (int fd, char *name);
 bool isdir (int fd);
 int inumber (int fd);
 
-struct dir *get_start_dir (const char *file_path);
 static int get_next_part (char part[NAME_MAX + 1], const char **src_p);
 bool make_file_from_path (struct dir **parent, const char *file_path, bool is_dir, unsigned initial_size);
 struct file *open_file_from_path (struct dir **parent, const char *file_path, char **file_name, block_sector_t *parent_sector);
 bool get_dir_from_path (struct dir **parent, const char *dir_path);
-block_sector_t get_cwd_inum (void);
-struct dir *get_cwd (void);
-bool set_cwd (struct dir *dir);
-bool file_is_cwd (struct file *file);
-bool file_is_parent (struct file *file);
-
-static bool path_is_absolute(const char *path);
 
 void syscall_init(void)
 {
@@ -428,17 +420,6 @@ int inumber(int fd)
 	return inode_get_inumber (file_get_inode (cur->descls[fd - 2]));
 }
 
-struct dir *get_start_dir (const char *file_path)
-{
-	struct dir *start_dir = NULL;
-
-    if (path_is_absolute (file_path))
-    	start_dir = dir_open_root ();
-    else
-    	start_dir = get_cwd ();
-
-    return start_dir;
-}
 
 bool make_file_from_path (struct dir **parent, const char *file_path, bool is_dir, unsigned initial_size)
 {
@@ -554,40 +535,6 @@ bool get_dir_from_path (struct dir **parent, const char *dir_path)
 	return true;
 }
 
-struct dir *get_cwd ()
-{
-	return dir_open (inode_open (get_cwd_inum ()));
-}
-
-block_sector_t get_cwd_inum ()
-{
-	return thread_current ()->curdir_inum;
-}
-
-bool set_cwd (struct dir *dir)
-{
-	if (dir == NULL)
-		return false;
-
-	thread_current ()->curdir_inum = inode_get_inumber (dir_get_inode (dir));
-	return true;
-}
-
-bool file_is_cwd (struct file *file)
-{
-  return inode_get_inumber (file_get_inode (file)) == get_cwd_inum ();
-}
-
-bool file_is_parent (struct file *file)
-{
-	struct inode *inode = NULL;
-	struct dir *cwd = get_cwd ();
-	dir_lookup (cwd, "..", &inode);
-	bool result = inode_get_inumber (file_get_inode (file)) == inode_get_inumber (inode);
-	inode_close (inode);
-	dir_close (cwd);
-	return result;
-}
 
 static int get_next_part (char part[NAME_MAX + 1], const char **src_p) {
 	const char *src = *src_p;
@@ -616,10 +563,6 @@ static int get_next_part (char part[NAME_MAX + 1], const char **src_p) {
 	return 1;
 }
 
-static bool path_is_absolute(const char *path)
-{
-	return path[0] == '/';
-}
 
 /* check if pointer address is valid */
 static bool is_valid_address(void *p)

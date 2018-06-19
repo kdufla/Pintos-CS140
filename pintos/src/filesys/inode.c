@@ -21,6 +21,7 @@
 #define number_of_dindirect_blocks(sec) (number_of_dindirects(sec) / ADDS_IN_BLOCK + number_of_dindirects(sec) % ADDS_IN_BLOCK > 0 ? 1 : 0)
 #define number_till_end(sec, i) ((number_of_dindirects(sec) - i * ADDS_IN_BLOCK) >= ADDS_IN_BLOCK ? ADDS_IN_BLOCK : (number_of_dindirects(sec) - i * ADDS_IN_BLOCK))
 #define DOUBLY_IDX(sec) (realdinds(sec) / ADDS_IN_BLOCK)
+#define DOUBLY_IDX_IN(sec) (realdinds(sec) % ADDS_IN_BLOCK)
 #define MIN(a, b) (a > b ? b : a)
 #define blocks_needed(sectors) (sectors + (sectors > DIRECT_BLOCKS ? 1 : 0) + (sectors > DIRECT_BLOCKS + BLOCK_SECTOR_SIZE / 4 ? 1 + DIV_ROUND_UP((sectors - DIRECT_BLOCKS - BLOCK_SECTOR_SIZE / 4), (BLOCK_SECTOR_SIZE / 4)) : 0))
 
@@ -145,8 +146,15 @@ byte_to_sector_create (struct inode *inode, off_t pos)
 
     if(sec < DIRECT_BLOCKS + ADDS_IN_BLOCK)
     {
-      struct block_with_array *sd = malloc(sizeof(struct block_with_array));
-      block_read (fs_device, id->single, sd);
+      struct block_with_array *sd = calloc(1, sizeof(struct block_with_array));
+      if(id->single > 0)
+      {
+        block_read (fs_device, id->single, sd);
+      }else
+      {
+        free_map_allocate (1, &baddr);
+        id->single = baddr;
+      }
 
       if(sd->sectors[sec - DIRECT_BLOCKS] > 3)
       {
@@ -164,24 +172,39 @@ byte_to_sector_create (struct inode *inode, off_t pos)
       return baddr;
     }
 
-    struct block_with_array *sd = malloc(sizeof(struct block_with_array));
-    block_read (fs_device, id->doubly, sd);
-
-    block_sector_t bs = sd->sectors[DOUBLY_IDX(sec)];
-    block_read (fs_device, bs, sd);
-
-
-    if(sd->sectors[sec - DIRECT_BLOCKS] > 3)
+    struct block_with_array *sd = calloc(1, sizeof(struct block_with_array));
+    struct block_with_array *ssd = calloc(1, sizeof(struct block_with_array));
+    if(id->doubly > 0){
+      block_read (fs_device, id->doubly, sd);
+    }else
     {
-      baddr = sd->sectors[sec - DIRECT_BLOCKS];
-      free(sd);
-      return baddr;
+      free_map_allocate (1, &baddr);
+      id->doubly = baddr;      
     }
 
-    free_map_allocate (1, &baddr);
-    sd->sectors[realdinds(sec) % ADDS_IN_BLOCK] = baddr;
+    block_sector_t bs = sd->sectors[DOUBLY_IDX(sec)];
+    if(bs > 0)
+    {
+      block_read (fs_device, bs, ssd);
+    }else
+    {
+      free_map_allocate (1, &baddr);
+      sd->sectors[DOUBLY_IDX(sec)] = baddr;
+      block_write (fs_device, id->doubly, sd);
+    }
 
+    if(ssd->sectors[DOUBLY_IDX_IN(sec)] > 0)
+    {
+      baddr = ssd->sectors[DOUBLY_IDX_IN(sec)];
+    }else
+    {
+      free_map_allocate (1, &baddr);
+      ssd->sectors[DOUBLY_IDX_IN(sec)] = baddr;
+      block_write (fs_device, sd->sectors[DOUBLY_IDX(sec)], ssd);
+    }
+    
     free(sd);
+    free(ssd);
     return baddr;
   }
 }
@@ -669,6 +692,9 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 
       /* Sector to write, starting byte offset within sector. */
       block_sector_t sector_idx = byte_to_sector_create (inode, offset);
+
+
+      sector_idx = byte_to_sector_create (inode, offset);
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */

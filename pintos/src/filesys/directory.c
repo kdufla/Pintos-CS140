@@ -5,6 +5,7 @@
 #include "filesys/filesys.h"
 #include "filesys/inode.h"
 #include "threads/malloc.h"
+#include "threads/thread.h"
 
 /* A single directory entry. */
 struct dir_entry
@@ -13,6 +14,9 @@ struct dir_entry
     char name[NAME_MAX + 1];            /* Null terminated file name. */
     bool in_use;                        /* In use or free? */
   };
+
+static bool path_is_absolute(const char *path);
+
 
 /* Creates a directory with space for ENTRY_CNT entries in the
    given SECTOR.  Returns true if successful, false on failure. */
@@ -226,4 +230,40 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
         }
     }
   return false;
+}
+
+struct dir *get_cwd ()
+{
+	return dir_open (inode_open (get_cwd_inum ()));
+}
+
+bool set_cwd (struct dir *dir)
+{
+	if (dir == NULL)
+		return false;
+
+	thread_current ()->curdir_inum = inode_get_inumber (dir_get_inode (dir));
+	return true;
+}
+
+block_sector_t get_cwd_inum ()
+{
+	return thread_current ()->curdir_inum;
+}
+
+static bool path_is_absolute(const char *path)
+{
+	return path[0] == '/';
+}
+
+struct dir *get_start_dir (const char *file_path)
+{
+	struct dir *start_dir = NULL;
+
+    if (path_is_absolute (file_path))
+    	start_dir = dir_open_root ();
+    else
+    	start_dir = get_cwd ();
+
+    return start_dir;
 }
