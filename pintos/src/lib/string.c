@@ -18,20 +18,6 @@ memcpy (void *dst_, const void *src_, size_t size)
   return dst_;
 }
 
-int strncmp(const char *s, const char *t, size_t num)
-{
-    for ( ; num >0;  s++, t++, num--)
-        if (*s == 0)
-            return 0;
-
-    if (*s == *t) {
-        ++s;
-        ++t;
-    }
-    else if (*s != *t)
-        return *s - *t;  
-}
-
 /* Copies SIZE bytes from SRC to DST, which are allowed to
    overlap.  Returns DST. */
 void *

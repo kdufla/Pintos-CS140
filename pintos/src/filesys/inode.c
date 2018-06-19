@@ -94,7 +94,6 @@ byte_to_sector (struct inode *inode, off_t pos)
     if(sec < DIRECT_BLOCKS + ADDS_IN_BLOCK)
     {
       struct block_with_array *sd = malloc(sizeof(struct block_with_array));
-      // block_read (fs_device, id->single, sd);
       filecache_read_at( id->single, (char*) sd, 0, BLOCK_SECTOR_SIZE, 0);
 
       block_sector_t bs = sd->sectors[sec - DIRECT_BLOCKS];
@@ -104,11 +103,9 @@ byte_to_sector (struct inode *inode, off_t pos)
     }
 
     struct block_with_array *sd = malloc(sizeof(struct block_with_array));
-    // block_read (fs_device, id->doubly, sd);
     filecache_read_at(id->doubly, (char*) sd, 0, BLOCK_SECTOR_SIZE, 0);
 
     block_sector_t bs = sd->sectors[DOUBLY_IDX(sec)];
-    // block_read (fs_device, bs, sd);
     filecache_read_at(bs, (char*) sd, 0, BLOCK_SECTOR_SIZE, 0);
 
     return sd->sectors[realdinds(sec) % ADDS_IN_BLOCK];
@@ -144,7 +141,6 @@ byte_to_sector_create (struct inode *inode, off_t pos)
       }
       free_map_allocate (1, &baddr);
       id->direct[sec] = baddr;
-      // block_write(fs_device, inode->sector, id);
       filecache_write_at(inode->sector, (char*) id, 0, BLOCK_SECTOR_SIZE, 0);
       return baddr;
     }
@@ -154,7 +150,6 @@ byte_to_sector_create (struct inode *inode, off_t pos)
       struct block_with_array *sd = calloc(1, sizeof(struct block_with_array));
       if(id->single > 0)
       {
-        // block_read (fs_device, id->single, sd);
         filecache_read_at(id->single, (char*) sd, 0, BLOCK_SECTOR_SIZE, 0);
       }else
       {
@@ -172,7 +167,6 @@ byte_to_sector_create (struct inode *inode, off_t pos)
       free_map_allocate (1, &baddr);
       sd->sectors[sec - DIRECT_BLOCKS] = baddr;
 
-      // block_write(fs_device, id->single, sd);
       filecache_write_at(id->single, (char*) sd,  0, BLOCK_SECTOR_SIZE, 0);
 
       free(sd);
@@ -182,7 +176,6 @@ byte_to_sector_create (struct inode *inode, off_t pos)
     struct block_with_array *sd = calloc(1, sizeof(struct block_with_array));
     struct block_with_array *ssd = calloc(1, sizeof(struct block_with_array));
     if(id->doubly > 0){
-      // block_read (fs_device, id->doubly, sd);
       filecache_read_at( id->doubly, (char*) sd, 0, BLOCK_SECTOR_SIZE, 0);
     }else
     {
@@ -193,13 +186,11 @@ byte_to_sector_create (struct inode *inode, off_t pos)
     block_sector_t bs = sd->sectors[DOUBLY_IDX(sec)];
     if(bs > 0)
     {
-      // block_read (fs_device, bs, ssd);
       filecache_read_at(bs, (char*) ssd, 0, BLOCK_SECTOR_SIZE, 0);
     }else
     {
       free_map_allocate (1, &baddr);
       sd->sectors[DOUBLY_IDX(sec)] = baddr;
-      // block_write (fs_device, id->doubly, sd);
       filecache_write_at(id->doubly, (char*) sd,  0, BLOCK_SECTOR_SIZE, 0);
     }
 
@@ -210,7 +201,6 @@ byte_to_sector_create (struct inode *inode, off_t pos)
     {
       free_map_allocate (1, &baddr);
       ssd->sectors[DOUBLY_IDX_IN(sec)] = baddr;
-      // block_write (fs_device, sd->sectors[DOUBLY_IDX(sec)], ssd);
       filecache_write_at(sd->sectors[DOUBLY_IDX(sec)], (char*) ssd, 0, BLOCK_SECTOR_SIZE, 0);
     }
     
@@ -267,7 +257,6 @@ void fill_direct_sectors(int sectors,char *zeros, struct inode_disk *disk_inode,
   int i;
   for(i = 0; i < sectors; i++)
   {
-      // block_write (fs_device, addrs[i], zeros);
       filecache_write_at(addrs[i], zeros, 0, BLOCK_SECTOR_SIZE, 0);
       disk_inode->direct[i] = addrs[i];
   }
@@ -281,7 +270,6 @@ void fill_indirect_sectors(int sectors, char *zeros, int curr, struct block_with
   int i;
   for(i = 0; i < sectors; i++)
   {
-      // block_write (fs_device, addrs[i + curr], zeros);
       filecache_write_at( addrs[i+curr], zeros, 0, BLOCK_SECTOR_SIZE, 0);
       sd->sectors[i] = addrs[i + curr];
   }
@@ -306,7 +294,6 @@ void fill_gap(struct inode_disk *id, size_t off)
   while(lsec < DIRECT_BLOCKS && lsec < osec)
   {
     id->direct[lsec++] = addrs[count];
-    // block_write (fs_device, addrs[count++], zeros);
     filecache_write_at(addrs[count++], zeros, 0, BLOCK_SECTOR_SIZE, 0);
   }
 
@@ -319,24 +306,20 @@ void fill_gap(struct inode_disk *id, size_t off)
       bool new_single = lsec == DIRECT_BLOCKS;
       if(!new_single)
       {
-        // block_read (fs_device, id->single, sd);
         filecache_read_at(id->single, (char*) sd, 0, BLOCK_SECTOR_SIZE, 0);
       }
 
       while(lsec < osec && lsec < DIRECT_BLOCKS + ADDS_IN_BLOCK)
       {
         sd->sectors[lsec++ - DIRECT_BLOCKS] = addrs[count];  
-        // block_write (fs_device, addrs[count++], zeros);
         filecache_write_at(addrs[count++], (char*)zeros, 0, BLOCK_SECTOR_SIZE, 0);
       }
 
       if(new_single)
       {
         id->single = addrs[count];
-        // block_write (fs_device, addrs[count++], sd);
         filecache_write_at(addrs[count++], (char*) sd, 0, BLOCK_SECTOR_SIZE, 0);
       }else{
-        // block_write (fs_device, id->single, sd);
         filecache_write_at(id->single, (char*) sd, 0, BLOCK_SECTOR_SIZE, 0);
       }
     }
@@ -348,7 +331,6 @@ void fill_gap(struct inode_disk *id, size_t off)
       bool new_double = lsec == DIRECT_BLOCKS + ADDS_IN_BLOCK;
       if(!new_double)
       {
-        // block_read (fs_device, id->doubly, sd);
         filecache_read_at (id->doubly, (char*) sd, 0, BLOCK_SECTOR_SIZE, 0);
       }
       
@@ -358,7 +340,6 @@ void fill_gap(struct inode_disk *id, size_t off)
         bool new_dentry = realdinds(lsec) % ADDS_IN_BLOCK == 0;
         if(!new_dentry)
         {
-          //block_read (fs_device, sd->sectors[i], ssd);
           filecache_read_at(sd->sectors[i], (char *) ssd, 0, BLOCK_SECTOR_SIZE, 0);
         }
 
@@ -366,17 +347,14 @@ void fill_gap(struct inode_disk *id, size_t off)
         for(j = 0; j < n; j++)
         {
           ssd->sectors[(lsec++ - DIRECT_BLOCKS - ADDS_IN_BLOCK) % ADDS_IN_BLOCK] = addrs[count];  
-          // block_write (fs_device, addrs[count++], zeros);
           filecache_write_at(addrs[count++], zeros, 0, BLOCK_SECTOR_SIZE, 0);
         }
 
         if(new_dentry)
         {
           sd->sectors[i] = addrs[count];
-          // block_write (fs_device, addrs[count++], ssd);
           filecache_write_at(addrs[count++], (char*) ssd, 0, BLOCK_SECTOR_SIZE, 0);
         }else{
-          // block_write (fs_device, sd->sectors[i], ssd);
           filecache_write_at(sd->sectors[i], (char*) ssd, 0, BLOCK_SECTOR_SIZE, 0);
         }
         
@@ -385,10 +363,8 @@ void fill_gap(struct inode_disk *id, size_t off)
       if(new_double)
       {
         id->doubly = addrs[count];
-        // block_write (fs_device, addrs[count++], sd);
-        filecache_write_at(addrs[count++], sd, 0, BLOCK_SECTOR_SIZE, 0);
+        filecache_write_at(addrs[count++], (char*) sd, 0, BLOCK_SECTOR_SIZE, 0);
       }else{
-        // block_write (fs_device, id->doubly, sd);
         filecache_write_at(id->doubly, (char*) sd, 0, BLOCK_SECTOR_SIZE, 0);
       }
     }
@@ -424,7 +400,6 @@ inode_create (block_sector_t sector, off_t length, bool is_dir)
 
       if(length == 0){
         block_write (fs_device, sector, disk_inode);
-        //filecache_write_at(sector, (char*) disk_inode, 0, BLOCK_SECTOR_SIZE, 0);
         free(disk_inode);
         return true;
       }
@@ -445,7 +420,6 @@ inode_create (block_sector_t sector, off_t length, bool is_dir)
       if(count >= sectors)
       {
         block_write (fs_device, sector, disk_inode);
-        //filecache_write_at(sector, (char*) disk_inode, 0, BLOCK_SECTOR_SIZE, 0);
         free(addrs);
         free(disk_inode);
         return true;
@@ -534,7 +508,6 @@ inode_open (block_sector_t sector)
   inode->deny_write_cnt = 0;
   inode->pos = 0;
   inode->removed = false;
-  // lock_read (fs_device, inode->sector, &inode->data);
   filecache_read_at(inode->sector, (char*) &inode->data, 0, BLOCK_SECTOR_SIZE, 0);
   return inode;
 }
@@ -571,7 +544,6 @@ void release_inode_mem(struct inode_disk *id)
   if(sec > DIRECT_BLOCKS)
   {
     struct block_with_array *sd = malloc(sizeof(struct block_with_array));
-    // block_read (fs_device, id->single, sd);
     filecache_read_at(id->single, (char*) sd, 0, BLOCK_SECTOR_SIZE, 0);
 
     n = MIN(sec - n, ADDS_IN_BLOCK);
@@ -582,14 +554,12 @@ void release_inode_mem(struct inode_disk *id)
     
     if(sec > DIRECT_BLOCKS + ADDS_IN_BLOCK)
     {
-      // block_read (fs_device, id->doubly, sd);
       filecache_read_at(id->doubly, (char*)sd, 0, BLOCK_SECTOR_SIZE, 0);
       struct block_with_array *ssd = malloc(sizeof(struct block_with_array));
       
       n = number_of_dindirect_blocks(sec);
       for(i = 0; i < n; i++)
       {
-        // block_read (fs_device, sd->sectors[i], ssd);
         filecache_read_at(sd->sectors[i], (char*) ssd, 0, BLOCK_SECTOR_SIZE, 0);
 
         b = number_till_end(sec, i);
@@ -669,24 +639,6 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
         break;
 
       filecache_read_at(sector_idx, (char*) buffer, bytes_read, chunk_size,sector_ofs);
-      // if (sector_ofs == 0 && chunk_size == BLOCK_SECTOR_SIZE)
-      //   {
-      //     /* Read full sector directly into caller's buffer. */
-      //     block_read (fs_device, sector_idx, buffer + bytes_read);
-      //   }
-      // else
-      //   {
-      //     /* Read sector into bounce buffer, then partially copy
-      //        into caller's buffer. */
-      //     if (bounce == NULL)
-      //       {
-      //         bounce = malloc (BLOCK_SECTOR_SIZE);
-      //         if (bounce == NULL)
-      //           break;
-      //       }
-      //     block_read (fs_device, sector_idx, bounce);
-      //     memcpy (buffer + bytes_read, bounce + sector_ofs, chunk_size);
-      //   }
 
       /* Advance. */
       size -= chunk_size;
@@ -730,7 +682,6 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
-      // off_t inode_left = inode_length (inode) - offset;
       int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
       int min_left = sector_left; // inode_left < sector_left ? inode_left : sector_left;
 
@@ -744,31 +695,6 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
         break;
 
       filecache_write_at(sector_idx, (char*)buffer, bytes_written, chunk_size, sector_ofs);
-      // if (sector_ofs == 0 && chunk_size == BLOCK_SECTOR_SIZE)
-      //   {
-      //     /* Write full sector directly to disk. */
-      //     block_write (fs_device, sector_idx, buffer + bytes_written);
-      //   }
-      // else
-      //   {
-      //     /* We need a bounce buffer. */
-      //     if (bounce == NULL)
-      //       {
-      //         bounce = malloc (BLOCK_SECTOR_SIZE);
-      //         if (bounce == NULL)
-      //           break;
-      //       }
-
-      //     /* If the sector contains data before or after the chunk
-      //        we're writing, then we need to read in the sector
-      //        first.  Otherwise we start with a sector of all zeros. */
-      //     if (sector_ofs > 0 || chunk_size < sector_left)
-      //       block_read (fs_device, sector_idx, bounce);
-      //     else
-      //       memset (bounce, 0, BLOCK_SECTOR_SIZE);
-      //     memcpy (bounce + sector_ofs, buffer + bytes_written, chunk_size);
-      //     block_write (fs_device, sector_idx, bounce);
-      //   }
 
       /* Advance. */
       size -= chunk_size;

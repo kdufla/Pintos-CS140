@@ -11,7 +11,6 @@
 */
 struct filecache {
     block_sector_t sector_idx;
-    struct lock * blockLock;
     bool dirty;
     bool accessed;
     char* data;
