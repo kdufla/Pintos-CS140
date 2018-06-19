@@ -17,6 +17,7 @@
 #include "../filesys/inode.h"
 #include "../lib/kernel/stdio.h"
 #include "../devices/input.h"
+#include "../devices/block.h"
 
 static void syscall_handler(struct intr_frame *);
 struct lock filesys_lock;
@@ -26,25 +27,32 @@ static void halt(void);
 void exit(int status);
 static pid_t exec(const char *file);
 static int wait(pid_t pid);
-bool create(const char *file, unsigned initial_size);
-bool remove(const char *file);
-int open(const char *file);
+bool create(const char *file_path, unsigned initial_size);
+bool remove(const char *file_path);
+int open(const char *file_path);
 int filesize(int fd);
 int read(int fd, void *buffer, unsigned size);
 int write(int fd, const void *buffer, unsigned size);
 void seek(int fd, unsigned position);
 unsigned tell(int fd);
 void close(int fd);
-bool chdir (const char *dir);
+bool chdir (const char *dir_path);
 bool mkdir (const char *dir_path);
 bool readdir (int fd, char *name);
 bool isdir (int fd);
 int inumber (int fd);
 
-bool get_dir_and_filename(const char *file, char **b, struct dir **dir, char** full_path);
-char *parse_path(const char *path, struct dir **dir);
-void replace_pt_with_last_dir (char **b, char** abs_path);
-static void copy_path(char *dest, const char *src);
+struct dir *get_start_dir (const char *file_path);
+static int get_next_part (char part[NAME_MAX + 1], const char **src_p);
+bool make_file_from_path (struct dir **parent, const char *file_path, bool is_dir, unsigned initial_size);
+struct file *open_file_from_path (struct dir **parent, const char *file_path, char **file_name, block_sector_t *parent_sector);
+bool get_dir_from_path (struct dir **parent, const char *dir_path);
+block_sector_t get_cwd_inum (void);
+struct dir *get_cwd (void);
+bool set_cwd (struct dir *dir);
+bool file_is_cwd (struct file *file);
+bool file_is_parent (struct file *file);
+
 static bool path_is_absolute(const char *path);
 
 void syscall_init(void)
@@ -88,22 +96,13 @@ static int wait(pid_t pid)
 
 /* 	create file with initial size - initial_size and name - file
 	return success true or false */
-bool create(const char *file, unsigned initial_size)
+bool create(const char *file_path, unsigned initial_size)
 {
-	bool result;
 	lock_acquire(&filesys_lock);
 
-	if (strlen(file) == 1 && (file)[0] == '.')
-		return false;
+	struct dir *start_dir = get_start_dir (file_path);
 
-	struct dir *dir = NULL;
-	char *b = NULL;
-	char *fp = NULL;
-	result = get_dir_and_filename(file, &b, &dir, &fp);
-	free(fp);
-
-	if (result)
-		result = filesys_create(b, dir, initial_size, false);
+	bool result = make_file_from_path (&start_dir, file_path, false, initial_size);
 
 	lock_release(&filesys_lock);
 	return result;
@@ -111,93 +110,84 @@ bool create(const char *file, unsigned initial_size)
 
 /* 	remove file by name
 	return success true or false */
-bool remove(const char *file)
+bool remove(const char *file_path)
 {
-	bool result;
-	lock_acquire(&filesys_lock);
+	bool result = false;
+	lock_acquire (&filesys_lock);
 
-	if (strlen(file) == 1 && (file)[0] == '.')
-		return false;
+	struct dir *dir = get_start_dir (file_path);
 
-	struct dir *dir = NULL;
-	char *b = NULL;
-	char *abs_path = NULL;
-	result = get_dir_and_filename(file, &b, &dir, &abs_path);
+	char *file_name = NULL;
+	block_sector_t parent_sector = 1;
 
-	// Do not delete current working directory
-	char *cwd = thread_current()->curdir;
-	char *full_path = malloc(strlen(b) + strlen(abs_path) + 2);
-	copy_path (full_path, abs_path);
-	copy_path (full_path + strlen(full_path), b);
-	copy_path (full_path + strlen(full_path), "/");
-	if (str_equal(cwd, full_path, strlen(cwd)+1))
-		result = false;
+	struct file *file = open_file_from_path (&dir, file_path, &file_name, &parent_sector);
 
-	struct inode *inode = NULL;
+	bool opened = file != NULL;
+	bool remove = true;
 
-	if (result && dir_lookup(dir, b, &inode) && inode_open_count(inode) > 1 && is_inode_dir(inode))
-		result = false;
+	if (opened && file_is_dir (file))
+	{
+		if(file_is_open (file))
+		{
+			remove = false;
+			file_close (file);
+		}
 
-	free (full_path);
-	free (abs_path);
+		if (remove && file_is_cwd (file))
+		{
+			remove = false;
+			file_close (file);
+		}
 
-	if (result)
-		result = filesys_remove(b, dir);
+		if (remove && file_is_parent (file))
+		{
+			remove = false;
+			file_close (file);
+		}
+	}
 
-	lock_release(&filesys_lock);
+	if (remove)
+	{
+		file_close (file);
+		result = filesys_remove (file_name, dir_open (inode_open (parent_sector)));
+	}
+		
+	free (file_name);
+	lock_release (&filesys_lock);
 	return result;
 }
 
 /* 	open file
 	return file descriptor or -1 if error occured */
-int open(const char *file)
+int open(const char *file_path)
 {
 	lock_acquire(&filesys_lock);
 
 	struct thread *cur = thread_current();
 	int result = -1;
 
-	struct dir *dir = NULL;
-	char *b = NULL;
-	char *abs_path = NULL;
+	struct dir *dir = get_start_dir (file_path);
 
-	bool success = get_dir_and_filename(file, &b, &dir, &abs_path);
+	char *file_name = NULL;
+	block_sector_t parent_sector = 1;
 
-	if(success)
+	struct file *file = open_file_from_path (&dir, file_path, &file_name, &parent_sector);
+
+	if (file != NULL)
 	{
-		struct file *file_p;
-
-		if(strlen(b) == 1 && b[0] == '/')
+		int i;
+		for (i = 0; i < FD_MAX; i++)
 		{
-			dir = dir_open_root();
-			struct inode *inode = dir->inode;
-
-			file_p = file_open(inode);
-		}else{
-
-			if (b[strlen(b) - 1] == '/')
-				b[strlen(b) - 1] = '\0';
-
-			file_p = filesys_open(b, dir);
-		}
-
-		if (file_p != NULL)
-		{
-			int i;
-			for (i = 0; i < FD_MAX; i++)
+			if (cur->descls[i] == NULL)
 			{
-				if (cur->descls[i] == NULL)
-				{
-					cur->descls[i] = file_p;
-					result = i + 2;
-					break;
-				}
+				cur->descls[i] = file;
+				result = i + 2;
+				break;
 			}
 		}
 	}
 
-	free(abs_path);
-		
+	free (file_name);
 	lock_release(&filesys_lock);
 	return result;
 }
@@ -279,7 +269,7 @@ int write(int fd, const void *buffer, unsigned size)
 
 	if (cur->descls[fd - 2] != NULL)
 	{
-		if (is_inode_dir(file_get_inode(cur->descls[fd - 2])))
+		if (inode_is_dir (file_get_inode (cur->descls[fd - 2])))
 			result = -1;
     	else
 			result = file_write(cur->descls[fd - 2], buffer, size);
@@ -352,62 +342,55 @@ void close(int fd)
 
 bool chdir(const char *dir_path)
 {	
-	struct dir *dir = NULL;
-	lock_acquire(&filesys_lock);
-    char *path = parse_path (dir_path, &dir);
-	if(path)
-	    copy_path (thread_current()->curdir, path);
-    free (path);
-    lock_release(&filesys_lock);
-    return path;
+	if (strlen (dir_path) == 0)
+		return false;
+
+	lock_acquire (&filesys_lock);
+    
+    struct dir *dir = get_start_dir (dir_path);
+
+	bool result = get_dir_from_path (&dir, dir_path);
+
+	result = result && set_cwd (dir);
+
+	dir_close (dir);
+
+    lock_release (&filesys_lock);
+
+    return result;
 }
 
 
 bool mkdir(const char *dir_path)
 {
-	if (strlen(dir_path) == 0)
+	if (strlen (dir_path) == 0)
 		return false;
 	
-	lock_acquire(&filesys_lock);
+	lock_acquire (&filesys_lock);
 
-	bool result = false;
-	int len = strlen(dir_path);
-	char *path = malloc(len + 1);
-	copy_path(path, dir_path);
+	struct dir *start_dir = get_start_dir (dir_path);
 
-	if(path[len - 1] == '/')
-		path[len - 1] = '\0';
+    bool result = make_file_from_path (&start_dir, dir_path, true, 128);
 
-	struct dir *dir = NULL;
-	char *b = NULL;
-	char *fp = NULL;
-	result = get_dir_and_filename(path, &b, &dir, &fp);
-	free(fp);
+	lock_release (&filesys_lock);
 
-
-	if (result)
-	{
-		struct inode *inode = NULL;
-		dir_lookup (dir, b, &inode);
-		result = false;
-		if (inode == NULL)
-			result = filesys_create(b, dir, 128, true);
-		inode_close(inode);
-	}
-	// dir_close(dir);
-
-	lock_release(&filesys_lock);
-	free(path);
 	return result;
 }
 
 bool readdir(int fd, char *name)
 {
-	if (isdir(fd))
+	if (isdir (fd))
 	{
-		struct thread *cur = thread_current();
-		struct dir *dir = dir_open (file_get_inode(cur->descls[fd - 2]));
-		return dir_readdir (dir, name);
+		struct thread *cur = thread_current ();
+
+		struct dir *dir = dir_open (file_get_inode (cur->descls[fd - 2]));
+
+		bool result = dir_readdir (dir, name);
+
+		if (result && (str_equal (name, ".", 2) || str_equal (name, "..", 3)))
+			return readdir(fd, name);
+
+		return result;
 	}
 	return false;
 }
@@ -425,7 +408,7 @@ bool isdir(int fd)
 		return false;
 	}
 	
-	return is_inode_dir (file_get_inode(cur->descls[fd - 2]));
+	return inode_is_dir (file_get_inode (cur->descls[fd - 2]));
 }
 
 int inumber(int fd)
@@ -435,165 +418,202 @@ int inumber(int fd)
 		return -1;
 	}
 
-	struct thread *cur = thread_current();
+	struct thread *cur = thread_current ();
 
 	if (cur->descls[fd - 2] == NULL)
 	{
 		return -1;
 	}
 
-	return inode_get_inumber (file_get_inode(cur->descls[fd - 2]));
+	return inode_get_inumber (file_get_inode (cur->descls[fd - 2]));
 }
 
-char *parse_path(const char *dir_path, struct dir **dir)
+struct dir *get_start_dir (const char *file_path)
 {
-	struct thread *th = thread_current ();
-    
-    char *path = malloc (strlen(th->curdir)+strlen(dir_path)+2);
-    copy_path (path, th->curdir);
+	struct dir *start_dir = NULL;
 
-    if (path_is_absolute(dir_path))
-    	copy_path (path, dir_path);
+    if (path_is_absolute (file_path))
+    	start_dir = dir_open_root ();
     else
-    	copy_path (path + strlen(path), dir_path);
+    	start_dir = get_cwd ();
 
-    if (path[strlen(path)-1] != '/')
-    	copy_path (path + strlen(path), "/");
-
-    long index = 0;
-
-    struct dir *parent = dir_open_root ();
-
-    if (parent == NULL)
-		return NULL;
-
-    while (path[index] != '\0')
-    {
-    	if ((int)strlen(path) > index + 3 && str_equal(path + index, "/../", 4))
-    	{
-    		if (index == 0)
-    		{
-				copy_path (path, path + 3);
-    		}
-    		else
-    		{
-    			char *b = str_find_char_reversed (path, index-1, '/');
-    			copy_path (b, path + index + 3);
-    			index = b - path;
-    			b[0] = '\0';
-
-    			parent = filesys_open_dir_recursively (parent, path);
-
-    			if (parent == NULL)
-					return NULL;
-
-    			b[0] = '/';
-    		}
-		}
-		else if ((int)strlen(path) > index + 2 && str_equal(path + index, "/./", 3))
-		{
-			copy_path (path + index, path + index + 2);
-		}
-		else if ((int)strlen(path) > index + 1 && str_equal(path + index, "//", 2))
-		{
-			copy_path (path + index, path + index + 1);
-		}
-		else
-		{
-			char *b = str_find_char (path, index+1, '/');
-			if (b != NULL)
-			{
-				char *child = malloc (strlen(path)-index);
-				copy_path (child, path+index+1);
-				child[b-path-index-1] = '\0';
-
-				parent = filesys_open_dir (parent, child);
-
-				if (parent == NULL)
-					return NULL;
-
-				index = b - path;
-				free (child);
-			}
-			else
-			{
-				break;
-			}
-		}
-    }
-
-    *dir = parent;
-    return path;
+    return start_dir;
 }
 
-bool get_dir_and_filename(const char *file, char **b, struct dir **dir, char** full_path)
+bool make_file_from_path (struct dir **parent, const char *file_path, bool is_dir, unsigned initial_size)
 {
-	char *path;
-	*b = strrchr(file, '/');
-	if (*b == NULL)
-	{
-		path = malloc (1);
-		path[0] = '\0';
-		*b = file;
-	}
-	else if (file == *b)
-	{
-		path = malloc (2);
-		copy_path (path, "/");
-		(*b)++;
+	char *path_part = malloc (NAME_MAX + 1);
+	char *last_part = malloc (NAME_MAX + 1);
 
-		if (strlen(*b) == 0)
-			(*b)--;
+	if (get_next_part (path_part, &file_path) != 1){
+		free(path_part);
+		free(last_part);
+		return false;
 	}
-	else
-	{
-		path = malloc (strlen(file) + 1);
-		copy_path (path, file);
-		path[*b-file] = '\0';
-		(*b)++;
-	}
-	*full_path = parse_path (path, dir);
 
-	if (strlen(*b) == 1 && (*b)[0] == '.')
+	strlcpy (last_part, path_part, NAME_MAX + 1);
+
+	while (get_next_part (path_part, &file_path) == 1)
 	{
-		(*full_path)[strlen(*full_path) - 1] = '\0';
-		char *bb = strrchr(*full_path, '/');
-		if (bb == NULL)
+		if (!(*parent = filesys_open_dir (*parent, last_part))){
+			free(path_part);
+			free(last_part);
+			return false;
+		}
+
+		strlcpy (last_part, path_part, NAME_MAX + 1);
+	}
+
+	block_sector_t parent_sector = inode_get_inumber (dir_get_inode (*parent));
+
+	if (!filesys_create (last_part, *parent, initial_size, is_dir)){
+		free(path_part);
+		free(last_part);
+		return false;
+	}
+
+	if (is_dir)
+	{
+		struct inode *inode = NULL;
+		*parent = dir_open (inode_open (parent_sector));
+		dir_lookup (*parent, last_part, &inode);
+		struct dir *dir = dir_open (inode);
+		dir_add (dir, ".", inode_get_inumber (inode));
+		dir_add (dir, "..", inode_get_inumber (dir_get_inode (*parent)));
+		dir_close (dir);
+		dir_close (*parent);
+	}
+
+	free(path_part);
+	free(last_part);
+	return true;
+}
+
+struct file *open_file_from_path (struct dir **parent, const char *file_path, char **file_name, block_sector_t *parent_sector)
+{
+	char *path_part = malloc (NAME_MAX + 1);
+	char *last_part = malloc (NAME_MAX + 1);
+
+	if (get_next_part (path_part, &file_path) != 1){
+		strlcpy (last_part, path_part, NAME_MAX + 1);
+		*file_name = last_part;
+		free(path_part);
+
+		if (str_equal (file_path, "/", 2))
+			return file_open (dir_get_inode (*parent));
+		else
+			return NULL;
+	}
+
+	strlcpy (last_part, path_part, NAME_MAX + 1);
+
+	while (get_next_part (path_part, &file_path) == 1)
+	{
+		if (!(*parent = filesys_open_dir (*parent, last_part))){
+			*file_name = last_part;
+			free(path_part);
+			return NULL;
+		}
+
+		strlcpy (last_part, path_part, NAME_MAX + 1);
+	}
+
+	*file_name = last_part;
+	free(path_part);
+	*parent_sector = inode_get_inumber (dir_get_inode (*parent));
+	return filesys_open (last_part, *parent);
+}
+
+bool get_dir_from_path (struct dir **parent, const char *dir_path)
+{
+	char *path_part = malloc (NAME_MAX + 1);
+
+	if (get_next_part (path_part, &dir_path) != 1){
+		if (str_equal (dir_path, "/", 2))
 		{
-			*b = *full_path;
+			free(path_part);
+			*parent = dir_open_root ();
+			return true;
 		}
 		else
 		{
-			*b = bb + 1;
-			bb[0] = '\0';
-
-			char *tmp_cwd = malloc (strlen(thread_current()->curdir) + 1);
-			copy_path (tmp_cwd, thread_current ()->curdir);
-			copy_path (thread_current ()->curdir, "/");
-
-			*full_path = parse_path (*full_path, dir);
-			
-			copy_path (thread_current ()->curdir, tmp_cwd);
+			free(path_part);
+			*parent = NULL;
+			return false;
 		}
 	}
 
-	bool result = *full_path != NULL;
-	free(path);
+	do {
+		if (!(*parent = filesys_open_dir (*parent, path_part))){
+			free(path_part);
+			return false;
+		}
+	} while (get_next_part (path_part, &dir_path) == 1);
+	
+	free(path_part);
+	return true;
+}
+
+struct dir *get_cwd ()
+{
+	return dir_open (inode_open (get_cwd_inum ()));
+}
+
+block_sector_t get_cwd_inum ()
+{
+	return thread_current ()->curdir_inum;
+}
+
+bool set_cwd (struct dir *dir)
+{
+	if (dir == NULL)
+		return false;
+
+	thread_current ()->curdir_inum = inode_get_inumber (dir_get_inode (dir));
+	return true;
+}
+
+bool file_is_cwd (struct file *file)
+{
+  return inode_get_inumber (file_get_inode (file)) == get_cwd_inum ();
+}
+
+bool file_is_parent (struct file *file)
+{
+	struct inode *inode = NULL;
+	struct dir *cwd = get_cwd ();
+	dir_lookup (cwd, "..", &inode);
+	bool result = inode_get_inumber (file_get_inode (file)) == inode_get_inumber (inode);
+	inode_close (inode);
+	dir_close (cwd);
 	return result;
 }
 
-static void copy_path(char *dest, const char *src)
-{
-	memmove(dest, src, strlen(src) + 1);
-	// int i = 0;
-	// int len = strlen(src);
+static int get_next_part (char part[NAME_MAX + 1], const char **src_p) {
+	const char *src = *src_p;
+	char *dst = part;
 
-	// if (src > dest)
-	// 	for(;i < len + 1; i++)
-	// 		dest[i] = src[i];
-	// else
-	// 	for(i = len; i >= 0; i--)
-	// 		dest[i] = src[i];
+	/* Skip leading slashes. If it’s all slashes, we’re done. */
+	while (*src == '/')
+		src++;
+
+	if (*src == '\0')
+		return 0;
+
+	/* Copy up to NAME_MAX character from SRC to DST. Add null terminator. */
+	while (*src != '/' && *src != '\0') {
+		if (dst < part + NAME_MAX)
+			*dst++ = *src;
+		else
+			return -1;
+		src++;
+	}
+
+	*dst = '\0';
+
+	/* Advance source pointer. */
+	*src_p = src;
+	return 1;
 }
 
 static bool path_is_absolute(const char *path)
