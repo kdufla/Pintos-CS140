@@ -51,6 +51,7 @@ block_sector_t get_cwd_inum (void);
 struct dir *get_cwd (void);
 bool set_cwd (struct dir *dir);
 bool file_is_cwd (struct file *file);
+bool file_is_parent (struct file *file);
 
 static bool path_is_absolute(const char *path);
 
@@ -111,8 +112,8 @@ bool create(const char *file_path, unsigned initial_size)
 	return success true or false */
 bool remove(const char *file_path)
 {
-	bool result;
-	lock_acquire(&filesys_lock);
+	bool result = false;
+	lock_acquire (&filesys_lock);
 
 	struct dir *dir = get_start_dir (file_path);
 
@@ -137,6 +138,12 @@ bool remove(const char *file_path)
 			remove = false;
 			file_close (file);
 		}
+
+		if (remove && file_is_parent (file))
+		{
+			remove = false;
+			file_close (file);
+		}
 	}
 
 	if (remove)
@@ -145,8 +152,8 @@ bool remove(const char *file_path)
 		result = filesys_remove (file_name, dir_open (inode_open (parent_sector)));
 	}
 		
-	free(file_name);
-	lock_release(&filesys_lock);
+	free (file_name);
+	lock_release (&filesys_lock);
 	return result;
 }
 
@@ -569,6 +576,17 @@ bool set_cwd (struct dir *dir)
 bool file_is_cwd (struct file *file)
 {
   return inode_get_inumber (file_get_inode (file)) == get_cwd_inum ();
+}
+
+bool file_is_parent (struct file *file)
+{
+	struct inode *inode = NULL;
+	struct dir *cwd = get_cwd ();
+	dir_lookup (cwd, "..", &inode);
+	bool result = inode_get_inumber (file_get_inode (file)) == inode_get_inumber (inode);
+	inode_close (inode);
+	dir_close (cwd);
+	return result;
 }
 
 static int get_next_part (char part[NAME_MAX + 1], const char **src_p) {
