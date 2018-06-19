@@ -167,53 +167,28 @@ struct block_with_array {
 
 ## მონაცემთა სტრუქტურები
 
->> C1: Copy here the declaration of each new or changed `struct' or
->> `struct' member, global or static variable, `typedef', or
->> enumeration.  Identify the purpose of each in 25 words or less.
+``` c
+struct filecache {
+    block_sector_t sector_idx;  	/*Index of sector which we are cacheing*/
+    bool dirty;				/*Indicator of wheather there was written anything in block*/
+    bool accessed;			/*Indicator of if there was any read or write on this block*/
+    char* data;				/*Addres of cached data*/
+};
+```
+`struct filecache * cache` - მთლიანი ქეშის მასივი რომელიც ინახავს 64 ცალ ბლოკს. მისი ზომის შეცვლა შესაძლებელია კონსტანტის გამოყენებით.
+`int filled` - მთვლელი რომელიც ინახავს დასაწყისში შევსებამდე რამდენი ბლოკი არის ქეშში ჩაწერილი.
+`struct lock cache_lock` - ქეშში კითხვისა და წერის დამბლოკავი ლოქი.
 
 ## ალგორითმები
 
->> C2: Describe how your cache replacement algorithm chooses a cache
->> block to evict.
-
->> C3: Describe your implementation of write-behind.
-
->> C4: Describe your implementation of read-ahead.
+ბლოკის გამოძევებისას ჩვენი ქეშის ჩანაცვლების ფუნქცია იყენებს `second chance` ალგორითმს. მაშინ როდესაც ხდება კითხვა ან წერა და წასაკითხი/ჩასაწერი ბლოკი არ არის ქეშში, ვეძებთ გასაგდებ ბლოკს კერძოდ: უსასრულო ციკლში ვეძებთ პირველივე ისეთ ბლოკს რომელზეც არ იქნება მიმართვა `(bool accessed == 0)` შემდეგ ამ ბლოკზე ვნახულობთ განხორციელდა თუ არა მასში წერა, იმ შემთხვევაში თუ ბლოკი "დასვრილია" ამ ბლოკს ვწერთ დისკზე და მის ადგილას ვწერთ მის ჩამნაცვლებელ ბლოკს, ხოლო იმ შემთხვევაში თუ ბლოკზე მანამდე ჩაწერა არ მომხდარა უბრალოდ ვაგდებთ მას. 
 
 ## სინქრონიზაცია
 
->> C5: When one process is actively reading or writing data in a
->> buffer cache block, how are other processes prevented from evicting
->> that block?
-
->> C6: During the eviction of a block from the cache, how are other
->> processes prevented from attempting to access the block?
+სინქრონიზაციისთვის ჩვენი იმპლემენტაცია იყენებს ქეშის გლობალურ ლოქს. კითხვისას და წერისას ორივე შემთხვევაში მეთოდში შესვლისთანავე მკითხველი პროცესი იღებს ამ ლოქს. შემდგომ ეძებს ბლოკს არსებულ ქეშში თუ იპოვნა ანაცვლებს და აბრუნებს ლოქს, წინააღმდეგ შემთხვევაში, პოულობს გამოსაძევებლ ბლოკს და მის ნაცვლად ათავსებს ახლანდელ ბლოკს, ან თუ ქეშში კიდევ არის ადგილი უბრალოდ წერს/კითხულობს მითითებულ ბლოკს. ამგვარი სინქრონიზაციის შედეგად გამოდის რომ თუ ერთი ბლოკი კითხულობს/წერს ამ ბლოკზე სხვა პროცესი ვერანაირად ვერ მივა გამოძევებამდე, რადგან ვერ აიღებს ლოქს, გარდა ამისა იმ შემთხვევაში თუ კონკრეტული ბლოკი გაძევების პროცესშია მასზეც ვერ მიმართავენ ზემო აღნიშნული მიზეზის გამო, ვერ აიღებენ ლოქს. მსგავსი დაცვაა ჩატვირთვის დროს ამ ბლოკშიც სანამ არ ჩაიტვირთება სხვა ვერცერთი პროცესი ვერ მიწვდება ამ ბლოკს ჩასაწერად ან წასაკითხად.
 
 ## რატომ ავირჩიეთ ეს მიდგომა
 
->> C7: Describe a file workload likely to benefit from buffer caching,
->> and workloads likely to benefit from read-ahead and write-behind.
+ძირითადი მიზეზი ამ მიდგომის არჩევისა აღმოჩნდა გამოცდილება. არჩეული ალგორითმი უკვე გვქონდა გამოყენებული წინა პროექტში და დაკვირვების შედეგად დავასკვენით რომ მსგავსი იმპლემენტაცია კარგ პერფორმენსს იძლეოდა. შედეგად მსგავსი მიდგომა გამოვიყენეთ ამ დავალებაშიც. ვთვლით რომ ეს მიდგომა არის მარტივად და სწრაფად იმპლემენტირებადი და საკმაოდ ბევრი დადებითი მხარეც აქვს.
 
-			   SURVEY QUESTIONS
-			   ================
-
-Answering these questions is optional, but it will help us improve the
-course in future quarters.  Feel free to tell us anything you
-want--these questions are just to spur your thoughts.  You may also
-choose to respond anonymously in the course evaluations at the end of
-the quarter.
-
->> In your opinion, was this assignment, or any one of the three problems
->> in it, too easy or too hard?  Did it take too long or too little time?
-
->> Did you find that working on a particular part of the assignment gave
->> you greater insight into some aspect of OS design?
-
->> Is there some particular fact or hint we should give students in
->> future quarters to help them solve the problems?  Conversely, did you
->> find any of our guidance to be misleading?
-
->> Do you have any suggestions for the TAs to more effectively assist
->> students in future quarters?
-
->> Any other comments?
+			   
