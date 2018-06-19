@@ -45,7 +45,7 @@ int inumber (int fd);
 struct dir *get_start_dir (const char *file_path);
 static int get_next_part (char part[NAME_MAX + 1], const char **src_p);
 bool make_file_from_path (struct dir **parent, const char *file_path, bool is_dir, unsigned initial_size);
-struct file *open_file_from_path (struct dir **parent, const char *file_path, char **file_name);
+struct file *open_file_from_path (struct dir **parent, const char *file_path, char **file_name, block_sector_t *parent_sector);
 bool get_dir_from_path (struct dir **parent, const char *dir_path);
 block_sector_t get_cwd_inum (void);
 struct dir *get_cwd (void);
@@ -117,8 +117,9 @@ bool remove(const char *file_path)
 	struct dir *dir = get_start_dir (file_path);
 
 	char *file_name = NULL;
+	block_sector_t parent_sector = 1;
 
-	struct file *file = open_file_from_path (&dir, file_path, &file_name);
+	struct file *file = open_file_from_path (&dir, file_path, &file_name, &parent_sector);
 
 	bool opened = file != NULL;
 	bool remove = true;
@@ -139,9 +140,7 @@ bool remove(const char *file_path)
 	}
 
 	if (remove)
-		result = filesys_remove(file_name, dir);
-	else
-		dir_close (dir);
+		result = filesys_remove (file_name, dir_open (inode_open (parent_sector)));
 
 	file_close (file);
 	free(file_name);
@@ -161,8 +160,9 @@ int open(const char *file_path)
 	struct dir *dir = get_start_dir (file_path);
 
 	char *file_name = NULL;
+	block_sector_t parent_sector = 1;
 
-	struct file *file = open_file_from_path (&dir, file_path, &file_name);
+	struct file *file = open_file_from_path (&dir, file_path, &file_name, &parent_sector);
 
 	if (file != NULL)
 	{
@@ -179,7 +179,6 @@ int open(const char *file_path)
 	}
 
 	free (file_name);
-	dir_close (dir);
 	lock_release(&filesys_lock);
 	return result;
 }
@@ -470,7 +469,7 @@ bool make_file_from_path (struct dir **parent, const char *file_path, bool is_di
 	return true;
 }
 
-struct file *open_file_from_path (struct dir **parent, const char *file_path, char **file_name)
+struct file *open_file_from_path (struct dir **parent, const char *file_path, char **file_name, block_sector_t *parent_sector)
 {
 	char *path_part = malloc (NAME_MAX + 1);
 	char *last_part = malloc (NAME_MAX + 1);
@@ -501,7 +500,7 @@ struct file *open_file_from_path (struct dir **parent, const char *file_path, ch
 
 	*file_name = last_part;
 	free(path_part);
-
+	*parent_sector = inode_get_inumber (dir_get_inode (*parent));
 	return filesys_open (last_part, *parent);
 }
 
