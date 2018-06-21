@@ -11,6 +11,7 @@ static long long page_fault_cnt;
 
 static void kill (struct intr_frame *);
 static void page_fault (struct intr_frame *);
+bool stack_should_grow(void *fault_addr, void *esp);
 
 /* Registers handlers for interrupts that can be caused by user
    programs.
@@ -109,6 +110,11 @@ kill (struct intr_frame *f)
     }
 }
 
+bool stack_should_grow(void *fault_addr, void *esp)
+{
+  return (char *)fault_addr + 32 == (char *)esp || (char *)fault_addr + 8 == (char *)esp || (char*)fault_addr >= (char*) esp;
+}
+
 /* Page fault handler.  This is a skeleton that must be filled in
    to implement virtual memory.  Some solutions to project 2 may
    also require modifying this code.
@@ -123,9 +129,9 @@ kill (struct intr_frame *f)
 static void
 page_fault (struct intr_frame *f UNUSED)
 {
-  // bool not_present;  /* True: not-present page, false: writing r/o page. */
-  // bool write;        /* True: access was write, false: access was read. */
-  // bool user;         /* True: access by user, false: access by kernel. */
+  bool not_present;  /* True: not-present page, false: writing r/o page. */
+  bool write;        /* True: access was write, false: access was read. */
+  bool user;         /* True: access by user, false: access by kernel. */
   void *fault_addr;  /* Fault address. */
 
   /* Obtain faulting address, the virtual address that was
@@ -145,9 +151,49 @@ page_fault (struct intr_frame *f UNUSED)
   page_fault_cnt++;
 
   /* Determine cause. */
-  // not_present = (f->error_code & PF_P) == 0;
-  // write = (f->error_code & PF_W) != 0;
-  // user = (f->error_code & PF_U) != 0;
+  not_present = (f->error_code & PF_P) == 0;
+  write = (f->error_code & PF_W) != 0;
+  user = (f->error_code & PF_U) != 0;
+
+  if(!not_present){
+    exit(-1);
+  }
+
+  void *esp;
+
+  struct thread *th = thread_current();
+
+  if (user)
+    esp = f->esp;
+  else
+    esp = (void *) th->stack;
+
+  if(fault_addr !=NULL && is_user_vaddr(fault_addr)){
+
+
+    bool load = true;
+
+    struct supl_page p;
+    p.addr = (void *)(fault_addr - (size_t)fault_addr % PGSIZE);
+
+    if (stack_should_grow (fault_addr, esp)) {
+
+      set_unalocated_page(NULL, 0, (uint8_t *)p.addr, PGSIZE, 0, true, -1);
+      load = false;
+    }
+
+    struct hash_elem *e;
+    
+    e = hash_find (&th->pages, &p.hash_elem);
+
+    if(e != NULL){
+      struct supl_page *sp = hash_entry (e, struct supl_page, hash_elem);
+      load = sp->swapid >= 0 || !load ? false : true;
+      alloc_page(sp, load);
+      return;
+    }
+  }
+
 
   // /* To implement virtual memory, delete the rest of the function
   //    body, and replace it with code that brings in the page to
@@ -160,4 +206,3 @@ page_fault (struct intr_frame *f UNUSED)
   // kill (f);
   exit(-1);
 }
-

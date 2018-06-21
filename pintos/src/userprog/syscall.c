@@ -20,7 +20,10 @@
 #include "../devices/block.h"
 
 static void syscall_handler(struct intr_frame *);
+static bool is_valid_address(void *p);
+static bool is_valid_address_p(void *p);
 struct lock filesys_lock;
+struct lock mmap_lock;
 
 int practice(int i);
 static void halt(void);
@@ -47,9 +50,13 @@ bool make_file_from_path (struct dir **parent, const char *file_path, bool is_di
 struct file *open_file_from_path (struct dir **parent, const char *file_path, char **file_name, block_sector_t *parent_sector);
 bool get_dir_from_path (struct dir **parent, const char *dir_path);
 
+mapid_t mmap(int fd, void *addr);
+void munmap(mapid_t);
+
 void syscall_init(void)
 {
 	lock_init(&filesys_lock);
+	lock_init(&mmap_lock);
 	intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
@@ -369,6 +376,22 @@ bool mkdir(const char *dir_path)
 	return result;
 }
 
+#define OVERLAP(a, b, x, y) ((x >= a && x <= b) || (y >= a && y <= b))
+
+static bool is_overlap(struct mapel *mp, void *first, void *last)
+{
+	size_t i;
+	for (i = 0; i < MAP_MAX; i++)
+	{
+		if (mp[i].first != 0 && OVERLAP(mp[i].first, mp[i].last, first, last))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+
 bool readdir(int fd, char *name)
 {
 	if (isdir (fd))
@@ -383,8 +406,11 @@ bool readdir(int fd, char *name)
 			return readdir(fd, name);
 
 		return result;
+
 	}
+
 	return false;
+
 }
 
 bool isdir(int fd)
@@ -536,7 +562,8 @@ bool get_dir_from_path (struct dir **parent, const char *dir_path)
 }
 
 
-static int get_next_part (char part[NAME_MAX + 1], const char **src_p) {
+static int get_next_part (char part[NAME_MAX + 1], const char **src_p)
+{
 	const char *src = *src_p;
 	char *dst = part;
 
@@ -564,10 +591,163 @@ static int get_next_part (char part[NAME_MAX + 1], const char **src_p) {
 }
 
 
+mapid_t mmap(int fd, void *addr)
+{
+	if (fd == 0 || fd == 1 || fd > FD_MAX + 1 || fd < 0 || (size_t)addr % PGSIZE != 0 || addr == NULL)
+	{
+		return -1;
+	}
+
+	struct supl_page p;
+	p.addr = addr;
+
+	struct thread *th = thread_current();
+
+	struct hash_elem *e;
+	e = hash_find (&th->pages, &p.hash_elem);
+	
+	if(e){
+		return -1;
+	}
+
+	lock_acquire(&filesys_lock);
+	// lock_acquire(&mmap_lock);
+
+	struct file *file = th->descls[fd - 2];
+	if (file == NULL)
+	{
+		// lock_release(&mmap_lock);
+		lock_release(&filesys_lock);
+		return -1;
+	}
+	file = file_reopen(file);
+
+	size_t i, size_bytes, ofs = 0;
+	void *first = addr, *last;
+
+	size_bytes = file_length(file);
+
+	if(addr + size_bytes >= pg_round_down(th->stack)){
+		file_close(file);
+		// lock_release(&mmap_lock);
+		lock_release(&filesys_lock);
+		return -1;
+	}
+	// size_pages = (size_bytes / PGSIZE + size_bytes % PGSIZE == 0 ? 0 : 1) << 12;
+	// zeros = size_pages * PGSIZE - size_bytes;
+
+	last = (char*)first + size_bytes / PGSIZE * PGSIZE;
+
+	if(!is_valid_address_p((void *) first) || !is_valid_address_p((void *) last)){
+		// lock_release(&mmap_lock);
+		lock_release(&filesys_lock);
+		exit(-1);
+	}
+
+
+	if (is_overlap(th->maps, first, last))
+	{
+		// lock_release(&mmap_lock);
+		lock_release(&filesys_lock);
+		return -1;
+	}
+
+	for (i = 0; i < MAP_MAX; i++)
+	{
+		if (th->maps[i].first == NULL)
+		{
+			th->maps[i].first = first;
+			th->maps[i].last = last;
+			th->maps[i].file = file;
+
+			while (size_bytes > 0)
+		    {
+				size_t page_read_bytes = size_bytes < PGSIZE ? size_bytes : PGSIZE;
+				size_t page_zero_bytes = PGSIZE - page_read_bytes;
+
+				set_unalocated_page(file, ofs, addr, page_read_bytes, page_zero_bytes, true, i);
+
+				/* Advance. */
+				size_bytes -= page_read_bytes;
+				addr += PGSIZE;
+				ofs += page_read_bytes;
+    		}
+
+			// lock_release(&mmap_lock);
+			lock_release(&filesys_lock);
+			return i;
+		}
+	}
+
+	// lock_release(&mmap_lock);
+	lock_release(&filesys_lock);
+	return -1;
+}
+
+void munmap(mapid_t id){
+	struct mapel *m = thread_current()->maps;
+
+	lock_acquire(&filesys_lock);
+	// lock_acquire(&mmap_lock);
+	struct file *f = m[id].file;
+
+	if(f == NULL){
+		return;
+	}
+
+	struct thread *th = thread_current();
+	int ofs = 0;
+	void *first = m[id].first, *last = m[id].last;
+
+	file_seek(f, 0);
+	for(; first <= last; first += PGSIZE, ofs += PGSIZE){
+		struct supl_page p;
+		p.addr = first;
+
+	    struct hash_elem *e;
+	    e = hash_find (&th->pages, &p.hash_elem);
+		if(e){
+			hash_delete(&th->pages, e);
+
+			struct supl_page *sp = hash_entry (e, struct supl_page, hash_elem);
+			// write(1, first, PGSIZE - sp->zero_bytes);
+			if(pagedir_is_dirty(th->pagedir, first)){
+				file_seek(f, ofs);
+				file_write(f, first, PGSIZE - sp->zero_bytes);
+
+				void *kpage = pagedir_get_page(th->pagedir, sp->addr);
+				remove_frame(sp->frame);
+				pagedir_clear_page(th->pagedir, sp->addr);
+				palloc_free_page(kpage);
+			}
+
+						
+			free(sp);
+
+		}
+	}
+
+	// lock_release(&mmap_lock);
+	lock_release(&filesys_lock);
+	file_close(f);	
+
+}
+
 /* check if pointer address is valid */
 static bool is_valid_address(void *p)
 {
 	if (p == NULL || !is_user_vaddr((uint32_t *)p) || pagedir_get_page(thread_current()->pagedir, (uint32_t *)p) == NULL)
+	{
+		return false;
+	}
+
+	return true;
+}
+
+/* check if pointer address is valid */
+static bool is_valid_address_p(void *p)
+{
+	if (p == NULL || !is_user_vaddr((uint32_t *)p))
 	{
 		return false;
 	}
@@ -602,7 +782,7 @@ static void *get_arg_pointer(void *p, int len)
 	{
 		do
 		{
-			if (!is_valid_address(p))
+			if (!is_valid_address_p(p))
 			{
 				exit(-1);
 			}
@@ -612,7 +792,7 @@ static void *get_arg_pointer(void *p, int len)
 	{
 		while (len-- > 0)
 		{
-			if (!is_valid_address((char *)p++))
+			if (!is_valid_address_p((char *)p++))
 			{
 				exit(-1);
 			}
@@ -626,9 +806,12 @@ static void *get_arg_pointer(void *p, int len)
 #define GET_ARG_POINTER(i, len) (get_arg_pointer((uint32_t *)GET_ARG_INT(i), len))
 
 static void
-syscall_handler(struct intr_frame *f UNUSED)
+syscall_handler(struct intr_frame *f)
 {
 	int sysc_num = GET_ARG_INT(0);
+
+	struct thread *th = thread_current();
+	th->stack = (uint8_t *) f->esp;
 
 	uint32_t rv = 8675309;
 
@@ -690,6 +873,11 @@ syscall_handler(struct intr_frame *f UNUSED)
 		break;
 	case SYS_INUMBER:
 		rv = (uint32_t)inumber(GET_ARG_INT(1));
+	case SYS_MMAP:
+		rv = mmap(GET_ARG_INT(1), (void*)GET_ARG_INT(2));
+		break;
+	case SYS_MUNMAP:
+		munmap(GET_ARG_INT(1));
 		break;
 	default:
 		exit(-1);

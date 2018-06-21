@@ -19,6 +19,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "syscall.h"
+#include "vm/frame_table.h"
 
 // static struct semaphore temporary;
 static thread_func start_process NO_RETURN;
@@ -26,6 +27,7 @@ struct child_info *get_child_info (struct thread *parent, tid_t child_tid);
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 static uint16_t get_first_token_len(const char *str);
 static char *get_first_token(char *dest, const char *src, uint16_t len);
+void free_process_pages(struct hash_elem *elem, void *aux);
 
 struct file_with_sema{
   char *file;
@@ -163,6 +165,26 @@ process_wait (tid_t child_tid)
   return status;
 }
 
+void
+free_process_pages(struct hash_elem *elem, void *aux UNUSED)
+{
+  struct supl_page *s_page = hash_entry (elem, struct supl_page, hash_elem);
+  
+  struct thread *th = thread_current();
+
+  if(s_page->mapid >= 0 && pagedir_is_dirty(th->pagedir, s_page->addr)){
+    file_seek(s_page->file, s_page->ofs);
+    file_write(s_page->file, s_page->addr, PGSIZE - s_page->zero_bytes);
+  }
+  
+  if (s_page->frame != NULL)
+  {
+    remove_frame (s_page->frame);
+  }
+
+  free (s_page);
+}
+
 /* Free the current process's resources. */
 void
 process_exit (void)
@@ -172,7 +194,6 @@ process_exit (void)
 
 
   /* Close all open files */
-  lock_acquire(&filesys_lock);  
   int k = 0;
   for(; k < FD_MAX; k++){
     if(cur->descls[k] != NULL){
@@ -180,9 +201,8 @@ process_exit (void)
       cur->descls[k] = NULL;
     }
   }
-  lock_release(&filesys_lock);
-
-
+  
+  hash_destroy (&(cur->pages), free_process_pages);
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -236,9 +256,7 @@ process_exit (void)
   sema_up(&(cur->info->sema_wait_for_child));
 	
   /* Close executable */
-  lock_acquire(&filesys_lock);  
   file_close(cur->executable);
-  lock_release(&filesys_lock);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -364,6 +382,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
   char *str_buf[file_name_len + 1];
   char *file_name_ = get_first_token((char *)str_buf, file_name, file_name_len);
 
+  hash_init(&t->pages, page_hash, page_less, NULL);
+
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL)
@@ -381,12 +401,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
     }
 
   /* Deny write in executable */
-	lock_acquire(&filesys_lock);
   file_deny_write(file);
-  lock_release(&filesys_lock);
 
   /* Read and verify executable header. */
-	lock_acquire(&filesys_lock);
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
       || memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
       || ehdr.e_type != 2
@@ -396,10 +413,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
       || ehdr.e_phnum > 1024)
     {
       printf ("load: %s: error loading executable\n", file_name);
-      lock_release(&filesys_lock);
       goto done;
     }
-  lock_release(&filesys_lock);
 
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
@@ -407,18 +422,14 @@ load (const char *file_name, void (**eip) (void), void **esp)
     {
       struct Elf32_Phdr phdr;
 
-    	lock_acquire(&filesys_lock);
       if (file_ofs < 0 || file_ofs > file_length (file)){
-        lock_release(&filesys_lock);
         goto done;
       }
       file_seek (file, file_ofs);
 
       if (file_read (file, &phdr, sizeof phdr) != sizeof phdr){
-        lock_release(&filesys_lock);
         goto done;
       }
-      lock_release(&filesys_lock);
 
       file_ofs += sizeof phdr;
       switch (phdr.p_type)
@@ -480,9 +491,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* We arrive here whether the load is successful or not. */
   // file_close (file);
   if(!success){
-  	lock_acquire(&filesys_lock);
     file_close(file);
-    lock_release(&filesys_lock);
   }else{
     t->executable = file;
   }
@@ -504,12 +513,9 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
     return false;
 
   /* p_offset must point within FILE. */
-	lock_acquire(&filesys_lock);
   if (phdr->p_offset > (Elf32_Off) file_length (file)){
-    lock_release(&filesys_lock);
     return false;
   }
-  lock_release(&filesys_lock);
 
   /* p_memsz must be at least as big as p_filesz. */
   if (phdr->p_memsz < phdr->p_filesz)
@@ -565,8 +571,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
 
-	lock_acquire(&filesys_lock);
-  file_seek (file, ofs);
+  // file_seek (file, ofs);
   while (read_bytes > 0 || zero_bytes > 0)
     {
       /* Calculate how to fill this page.
@@ -575,36 +580,14 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-      /* Get a page of memory. */
-      uint8_t *kpage = palloc_get_page (PAL_USER);
-      if (kpage == NULL){
-        lock_release(&filesys_lock);
-        return false;
-      }
-
-      /* Load this page. */
-      if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
-        {
-          palloc_free_page (kpage);
-          lock_release(&filesys_lock);
-          return false;
-        }
-      memset (kpage + page_read_bytes, 0, page_zero_bytes);
-
-      /* Add the page to the process's address space. */
-      if (!install_page (upage, kpage, writable))
-        {
-          palloc_free_page (kpage);
-          lock_release(&filesys_lock);
-          return false;
-        }
+      set_unalocated_page(file, ofs, upage, page_read_bytes, page_zero_bytes, writable, -1);
 
       /* Advance. */
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
+      ofs += page_read_bytes;
     }
-  lock_release(&filesys_lock);
   return true;
 }
 

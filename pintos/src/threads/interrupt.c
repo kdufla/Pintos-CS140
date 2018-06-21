@@ -377,9 +377,9 @@ intr_handler (struct intr_frame *frame)
   /* Complete the processing of an external interrupt. */
   if (external)
     {
-      ASSERT (intr_get_level () == INTR_OFF);
-      ASSERT (intr_context ());
-
+		  ASSERT (intr_get_level () == INTR_OFF);
+	    ASSERT (intr_context ());
+      
       in_external_intr = false;
       pic_end_of_interrupt (frame->vec_no);
 

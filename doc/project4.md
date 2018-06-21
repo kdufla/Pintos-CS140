@@ -1,5 +1,3 @@
-პროექტი #4 - ფაილური სისემა: დიზაინ დოკუმენტი
-========================================
 
 #### თბილისის თავისუფალი უნივერსიტეტი,  MACS, ოპერაციული სისტემების ინჟინერია, გაზაფხული-2018.
 
@@ -50,25 +48,6 @@ struct block_with_array {
 * `void fill_gap(struct inode_disk *id, size_t off)` off ოფსეტამდე ავსებს ფაილს. თუ ფაილის რეალური ზომა ნაკლებია ოფსეტზე, უცვლის ფაილს ზომას და წერს 0-ებს მოცემულ ზომამდე.
 
 * `static block_sector_t byte_to_sector_create (struct inode *inode, off_t pos)` - აბრუნებს ბლოკ დივაისის სექტორს, რომელშიც წერია ოფსეტი pos. ორიგინალი ფუნქციისგან (byte_to_sector) განსხვავებით, არ არსებობის შემთხვევაში გამოყოფს ბლოკს და იმას აბრუნებს. გამოსადეგია write-სთვის, არაა გამოსადეგი read-სთვის.
-
----- SYNCHRONIZATION ----
-
->> A3: Explain how your code avoids a race if two processes attempt to
->> extend a file at the same time.
-
->> A4: Suppose processes A and B both have file F open, both
->> positioned at end-of-file.  If A reads and B writes F at the same
->> time, A may read all, part, or none of what B writes.  However, A
->> may not read data other than what B writes, e.g. if B writes
->> nonzero data, A is not allowed to see all zeros.  Explain how your
->> code avoids this race.
-
->> A5: Explain how your synchronization design provides "fairness".
->> File access is "fair" if readers cannot indefinitely block writers
->> or vice versa.  That is, many processes reading from a file cannot
->> prevent forever another process from writing the file, and many
->> processes writing to a file cannot prevent another process forever
->> from reading the file.
 
 ## რატომ ავირჩიეთ ეს მიდგომა
 

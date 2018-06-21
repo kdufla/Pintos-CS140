@@ -22,12 +22,14 @@
 #include "threads/palloc.h"
 #include "threads/pte.h"
 #include "threads/thread.h"
+#include "vm/frame_table.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #include "userprog/exception.h"
 #include "userprog/gdt.h"
 #include "userprog/syscall.h"
 #include "userprog/tss.h"
+#include "vm/swap.h"
 #else
 #include "tests/threads/tests.h"
 #endif
@@ -105,6 +107,13 @@ main (void)
   gdt_init ();
 #endif
 
+  /* Virtual memory. */
+#ifdef USERPROG
+
+  frame_table_init ();
+
+#endif
+
   /* Initialize interrupt handlers. */
   intr_init ();
   timer_init ();
@@ -125,6 +134,7 @@ main (void)
   ide_init ();
   locate_block_devices ();
   filesys_init (format_filesys);
+  swap_init();  
 #endif
 
   printf ("Boot complete.\n");
