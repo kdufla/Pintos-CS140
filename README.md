@@ -1,20 +1,11 @@
 Pintos
 ======================
 
-ეს არის [თბილისის თავისუფალი უნივერსიტეტის](http://freeuni.edu.ge/) CS კურსის - ოპერაციული სისტემების ინჟინერიის - სტუდენტების ჯგუფის დავალება/პროექტი
+Pintos is a simple operating system designed at Stanford University for operating systems course CS140. Me and three of my classmates (<a href="https://github.com/Babdus">Aleksandre Abramishvili</a>, <a href="https://github.com/aleksandreK">Aleksandre Kakhidze</a>, <a href="https://github.com/anaka13">Aleksandre Nakaidze</a>) worked on this project as part of the [Free University of Tbilisi](http://freeuni.edu.ge/) course.
 
-### ჯგუფის წევრები
+### Design Documents (Georgin)
 
-* <a href="https://github.com/kdufla">გიორგი გველესიანი</a>
-* <a href="https://github.com/Babdus">ალექსანდრე აბრამიშვილი</a>
-* <a href="https://github.com/aleksandreK">ალექსანდრე კახიძე</a>
-* <a href="https://github.com/anaka13">ალექსანდრე ნაკაიძე</a>
-
-
-
-### დიზაინ დოკუმენტები
-
-* [პროექტი 1: Threads](doc/project1.md)
-* [პროექტი 2: User Programs](doc/project2.md)
-* [პროექტი 3: Virtual Memory](doc/project3.md)
-* [პროექტი 4: File System](doc/project4.md)
+* [Assignment 1: Threads](doc/project1.md)
+* [Assignment 2: User Programs](doc/project2.md)
+* [Assignment 3: Virtual Memory](doc/project3.md)
+* [Assignment 4: File System](doc/project4.md)
